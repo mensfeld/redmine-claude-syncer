@@ -64,4 +64,6 @@ Run the sync script with a Claude export ZIP file:
 
 ## License
 
-MIT 
+This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+The GNU AGPL is a free, copyleft license that ensures the software remains free and open source, with the additional requirement that any modifications made available over a network must also be made available under the same license terms. 
