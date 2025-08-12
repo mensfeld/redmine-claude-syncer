@@ -4,6 +4,7 @@ require_relative 'redmine_client'
 require 'logger'
 require 'fileutils'
 require 'date'
+require 'securerandom'
 
 class Syncer
   def initialize(config)
@@ -66,7 +67,7 @@ class Syncer
 
     return if new_messages.empty?
 
-    # Add new messages as notes from respective users
+    # Add new messages as notes from respective users (including code snippets inline)
     @redmine.process_messages(existing[:redmine_issue_id], new_messages)
 
     # Update database with new last message ID
@@ -96,7 +97,7 @@ class Syncer
       initial_description
     )
 
-    # Add all messages as notes from respective users
+    # Add all messages as notes from respective users (including code snippets inline)
     @redmine.process_messages(issue['id'], conversation[:messages])
 
     # Store in database
@@ -107,75 +108,4 @@ class Syncer
     )
   end
 
-  def process_artifacts(conversation_id, issue_id, messages)
-    messages.each do |msg|
-      # Extract artifacts from message content
-      artifacts = extract_artifacts(msg)
-      
-      artifacts.each do |artifact|
-        # Skip if artifact already processed
-        next if @db.artifact_exists?(conversation_id, artifact[:id])
-
-        # Save artifact
-        file_path = save_artifact(conversation_id, artifact)
-        
-        # Attach to Redmine issue
-        attachment = @redmine.attach_file(
-          issue_id,
-          file_path,
-          "Claude artifact: #{artifact[:type]}"
-        )
-
-        # Store in database
-        @db.create_artifact(
-          conversation_id,
-          artifact[:type],
-          file_path,
-          attachment.id
-        )
-      end
-    end
-  end
-
-  def extract_artifacts(message)
-    artifacts = []
-    
-    # Extract code blocks
-    message[:content].scan(/```(\w+)?\n(.*?)```/m).each do |lang, code|
-      artifacts << {
-        id: SecureRandom.uuid,
-        type: lang || 'code',
-        content: code.strip
-      }
-    end
-
-    # Extract other types of artifacts (you can add more patterns here)
-    # For example, Mermaid diagrams:
-    message[:content].scan(/```mermaid\n(.*?)```/m).each do |diagram|
-      artifacts << {
-        id: SecureRandom.uuid,
-        type: 'mermaid',
-        content: diagram.first.strip
-      }
-    end
-
-    artifacts
-  end
-
-  def save_artifact(conversation_id, artifact)
-    # Create artifacts directory if it doesn't exist
-    artifacts_dir = File.join('artifacts', conversation_id)
-    FileUtils.mkdir_p(artifacts_dir)
-
-    # Generate file path
-    file_path = File.join(
-      artifacts_dir,
-      "#{artifact[:id]}.#{artifact[:type]}"
-    )
-
-    # Save artifact
-    File.write(file_path, artifact[:content])
-    
-    file_path
-  end
 end 
