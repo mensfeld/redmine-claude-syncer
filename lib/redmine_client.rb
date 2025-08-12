@@ -180,9 +180,41 @@ class RedmineClient
   def process_messages(issue_id, messages)
     messages.each do |msg|
       user_id = msg[:role] == 'human' ? @human_user_id : @claude_user_id
-      content = "#{msg[:content]}\n\n*Posted at: #{msg[:created_at].strftime("%Y-%m-%d %H:%M:%S")}*"
+      content = format_message_with_code(msg)
       add_note(issue_id, content, user_id)
     end
+  end
+
+  def format_message_with_code(msg)
+    content = msg[:content] || ""
+    
+    # Add code snippets inline if they exist
+    if msg[:code_items] && !msg[:code_items].empty?
+      content += "\n\n" + format_code_snippets(msg[:code_items])
+    end
+    
+    content += "\n\n*Posted at: #{msg[:created_at].strftime("%Y-%m-%d %H:%M:%S")}*"
+    content
+  end
+  
+  def format_code_snippets(code_items)
+    formatted = "**📄 Code Snippets Found:**\n\n"
+    
+    code_items.each_with_index do |item, index|
+      emoji = item[:type] == 'artifact' ? '🔧' : '🔹'
+      formatted += "#{emoji} **#{item[:title]}** (#{item[:language]} - #{item[:type]})\n"
+      formatted += "Lines: #{item[:content].lines.count} | Characters: #{item[:content].length}\n\n"
+      
+      # Format code with proper markdown code blocks
+      formatted += "```#{item[:language]}\n"
+      formatted += item[:content]
+      formatted += "\n```\n\n"
+      
+      # Add separator between multiple code items
+      formatted += "---\n\n" if index < code_items.length - 1
+    end
+    
+    formatted
   end
 
   private

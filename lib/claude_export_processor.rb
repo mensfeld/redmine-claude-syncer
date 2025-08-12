@@ -78,8 +78,12 @@ class ClaudeExportProcessor
       files: msg['files']&.map { |f| f['file_name'] } || []
     }
     
-    # Extract and print code snippets from this message (pass original msg for artifact parsing)
-    extract_and_print_code_snippets(message_data, msg)
+    # Extract code snippets from this message and add them to the message data
+    code_items = extract_code_items(message_data, msg)
+    message_data[:code_items] = code_items
+    
+    # Print found code snippets if any
+    print_code_snippets(message_data, code_items) unless code_items.empty?
     
     message_data
   end
@@ -94,7 +98,7 @@ class ClaudeExportProcessor
     end
   end
   
-  def extract_and_print_code_snippets(message_data, original_msg)
+  def extract_code_items(message_data, original_msg)
     all_code_items = []
     
     # 1. Extract markdown code blocks from text content
@@ -105,7 +109,8 @@ class ClaudeExportProcessor
           language: lang || 'text',
           content: code.strip,
           index: index + 1,
-          title: "Code Block ##{index + 1}"
+          title: "Code Block ##{index + 1}",
+          id: "#{message_data[:id]}_markdown_#{index + 1}"
         }
       end
     end
@@ -128,43 +133,46 @@ class ClaudeExportProcessor
             content: artifact_content.strip,
             index: index + 1,
             title: artifact_title,
-            artifact_id: content_item['input']['id']
+            artifact_id: content_item['input']['id'],
+            id: content_item['input']['id'] || "#{message_data[:id]}_artifact_#{index + 1}"
           }
         end
       end
     end
     
-    # Print all found code items
-    unless all_code_items.empty?
-      puts "\n" + "="*70
-      puts "📄 CODE SNIPPETS & ARTIFACTS FOUND IN MESSAGE #{message_data[:id][0..7]}..."
-      puts "   Role: #{message_data[:role].upcase}"
-      puts "   Created: #{message_data[:created_at]}"
-      puts "="*70
+    all_code_items
+  end
+  
+  def print_code_snippets(message_data, all_code_items)
+    puts "\n" + "="*70
+    puts "📄 CODE SNIPPETS & ARTIFACTS FOUND IN MESSAGE #{message_data[:id][0..7]}..."
+    puts "   Role: #{message_data[:role].upcase}"
+    puts "   Created: #{message_data[:created_at]}"
+    puts "="*70
+    
+    all_code_items.each_with_index do |item, index|
+      type_emoji = item[:type] == 'artifact' ? '🔧' : '🔹'
+      puts "\n#{type_emoji} #{item[:title]} (#{item[:language]}):"
       
-      all_code_items.each_with_index do |item, index|
-        type_emoji = item[:type] == 'artifact' ? '🔧' : '🔹'
-        puts "\n#{type_emoji} #{item[:title]} (#{item[:language]}):"
-        
-        if item[:type] == 'artifact' && item[:artifact_id]
-          puts "   Artifact ID: #{item[:artifact_id]}"
-        end
-        
-        puts "-" * 50
-        puts item[:content]
-        puts "-" * 50
-        puts "   Lines: #{item[:content].lines.count}"
-        puts "   Characters: #{item[:content].length}"
-        puts "   Type: #{item[:type]}"
+      if item[:type] == 'artifact' && item[:artifact_id]
+        puts "   Artifact ID: #{item[:artifact_id]}"
       end
       
-      puts "\n📊 SUMMARY: Found #{all_code_items.length} code item(s) in this message"
-      artifact_count = all_code_items.count { |item| item[:type] == 'artifact' }
-      markdown_count = all_code_items.count { |item| item[:type] == 'markdown_block' }
-      puts "   - #{artifact_count} artifact(s)"
-      puts "   - #{markdown_count} markdown code block(s)"
-      puts "="*70
+      puts "-" * 50
+      puts item[:content]
+      puts "-" * 50
+      puts "   Lines: #{item[:content].lines.count}"
+      puts "   Characters: #{item[:content].length}"
+      puts "   Type: #{item[:type]}"
     end
+    
+    puts "\n📊 SUMMARY: Found #{all_code_items.length} code item(s) in this message"
+    artifact_count = all_code_items.count { |item| item[:type] == 'artifact' }
+    markdown_count = all_code_items.count { |item| item[:type] == 'markdown_block' }
+    puts "   - #{artifact_count} artifact(s)"
+    puts "   - #{markdown_count} markdown code block(s)"
+    puts "📝 These will be included inline in the Redmine note content"
+    puts "="*70
   end
   
   def extract_language_from_artifact_type(artifact_type)
