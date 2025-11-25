@@ -53,6 +53,9 @@ class Syncer
 
   private
 
+  # Processes a single conversation, creating or updating the Redmine issue
+  #
+  # @param conversation [Hash] conversation data with :id, :messages keys
   def process_conversation(conversation)
     @logger.info "Processing conversation #{conversation[:id]}"
 
@@ -66,6 +69,10 @@ class Syncer
     end
   end
 
+  # Updates an existing Redmine issue with new messages
+  #
+  # @param existing [Hash] existing conversation record from database
+  # @param conversation [Hash] conversation data with new messages
   def update_existing_conversation(existing, conversation)
     # Get messages that haven't been processed yet
     new_messages = conversation[:messages].select do |msg|
@@ -84,6 +91,9 @@ class Syncer
     )
   end
 
+  # Creates a new Redmine issue for a conversation
+  #
+  # @param conversation [Hash] conversation data with :id, :title, :messages keys
   def create_new_conversation(conversation)
     # Skip empty conversations
     if conversation[:messages].nil? || conversation[:messages].empty?

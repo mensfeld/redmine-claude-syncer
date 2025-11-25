@@ -269,6 +269,13 @@ class RedmineClient
 
   private
 
+  # Makes an HTTP request to the Redmine API with retry logic
+  #
+  # @param method [String] HTTP method (GET, POST, PUT, DELETE)
+  # @param path [String] API endpoint path
+  # @param data [Hash, nil] request body data
+  # @param api_key [String] API key for authentication
+  # @return [Net::HTTPResponse] successful response
   def make_request(method, path, data = nil, api_key)
     max_retries = 5  # Increased from 3 to 5
     base_delay = 2   # Increased from 1 to 2 seconds
@@ -331,6 +338,11 @@ class RedmineClient
     end
   end
 
+  # Uploads a file to Redmine and returns the upload token
+  #
+  # @param file_path [String] path to the file to upload
+  # @param api_key [String] API key for authentication
+  # @return [Net::HTTPResponse] response containing upload token
   def upload_file(file_path, api_key)
     uri = URI.parse("#{@base_url}/uploads.json")
     boundary = "----WebKitFormBoundary#{rand(1000000)}"

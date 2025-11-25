@@ -30,7 +30,7 @@ GEM
     sqlite3 (2.8.0-x86_64-linux-gnu)
     uri (1.1.1)
     yard (0.9.37)
-    yard-lint (0.2.1)
+    yard-lint (1.2.3)
       yard (~> 0.9)
       zeitwerk (~> 2.6)
     zeitwerk (2.7.3)
@@ -52,7 +52,7 @@ DEPENDENCIES
   rspec (~> 3.13)
   rubyzip (~> 3.0)
   sqlite3 (~> 2.0)
-  yard-lint (~> 0.1)
+  yard-lint (>= 0.3)
 
 BUNDLED WITH
    2.6.5

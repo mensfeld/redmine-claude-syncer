@@ -13,5 +13,5 @@ group :test do
 end
 
 group :development do
-  gem 'yard-lint', '~> 0.1'
+  gem 'yard-lint', '>= 0.3'
 end

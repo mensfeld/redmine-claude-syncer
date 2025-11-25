@@ -82,6 +82,7 @@ class Database
 
   private
 
+  # Initializes the database connection and creates tables if needed
   def setup_database
     FileUtils.mkdir_p(File.dirname(@db_path))
     
