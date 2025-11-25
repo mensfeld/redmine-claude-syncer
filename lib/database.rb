@@ -2,13 +2,21 @@ require 'sqlite3'
 require 'logger'
 require 'fileutils'
 
+# SQLite database layer for tracking synced conversations and artifacts
 class Database
+  # Creates a new database connection and initializes schema
+  #
+  # @param db_path [String] path to the SQLite database file
   def initialize(db_path)
     @db_path = db_path
     @logger = Logger.new('logs/database.log')
     setup_database
   end
 
+  # Retrieves a conversation record by its Claude conversation ID
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @return [Hash, nil] conversation data or nil if not found
   def get_conversation(conversation_id)
     row = @db.get_first_row(
       "SELECT claude_conversation_id, redmine_issue_id, last_exported_message_id, created_at, updated_at 
@@ -28,6 +36,11 @@ class Database
     }
   end
 
+  # Creates a new conversation record in the database
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @param redmine_issue_id [Integer] the corresponding Redmine issue ID
+  # @param last_message_id [String] the UUID of the last processed message
   def create_conversation(conversation_id, redmine_issue_id, last_message_id)
     @db.execute(
       "INSERT INTO conversations
@@ -38,6 +51,10 @@ class Database
     @logger.info "Created conversation record for #{conversation_id}"
   end
 
+  # Updates the last processed message ID for a conversation
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @param last_message_id [String] the UUID of the last processed message
   def update_last_message_id(conversation_id, last_message_id)
     @db.execute(
       "UPDATE conversations
@@ -48,6 +65,12 @@ class Database
     @logger.info "Updated last message ID for conversation #{conversation_id}"
   end
 
+  # Saves an artifact record linked to a conversation
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @param artifact_type [String] type of artifact (e.g., 'code', 'mermaid')
+  # @param file_path [String] local path where artifact is saved
+  # @param redmine_attachment_id [Integer, nil] Redmine attachment ID if uploaded
   def save_artifact(conversation_id, artifact_type, file_path, redmine_attachment_id)
     @db.execute(
       "INSERT INTO artifacts

@@ -6,12 +6,19 @@ require 'date'
 require 'time'
 require 'digest'
 
+# Processes Claude AI export ZIP files and extracts conversation data
 class ClaudeExportProcessor
+  # Creates a new processor for the given ZIP export file
+  #
+  # @param zip_path [String] path to the Claude export ZIP file
   def initialize(zip_path)
     @zip_path = zip_path
     @logger = Logger.new('logs/claude_export.log')
   end
 
+  # Processes the ZIP file and extracts all conversations
+  #
+  # @return [Array<Hash>] array of conversation hashes with :id, :title, :messages keys
   def process
     @logger.info "Processing Claude export from #{@zip_path}"
     

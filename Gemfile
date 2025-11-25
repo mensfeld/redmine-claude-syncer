@@ -11,3 +11,7 @@ gem 'net-http', '~> 0.2'  # For HTTP requests
 group :test do
   gem 'rspec', '~> 3.13'
 end
+
+group :development do
+  gem 'yard-lint', '~> 0.1'
+end
