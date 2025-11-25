@@ -25,6 +25,9 @@ db/
 # Artifacts
 artifacts/
 
+# Documentation
+.yardoc/
+
 # OS specific
 .DS_Store
 .DS_Store?

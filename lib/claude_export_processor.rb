@@ -57,6 +57,10 @@ class ClaudeExportProcessor
 
   private
 
+  # Processes a single conversation from the export data
+  #
+  # @param data [Hash] raw conversation data from JSON
+  # @return [Hash, nil] processed conversation hash or nil if invalid
   def process_conversation(data)
     return nil unless data.is_a?(Hash) && data['chat_messages'].is_a?(Array)
 
@@ -69,6 +73,10 @@ class ClaudeExportProcessor
     }
   end
 
+  # Processes a single message and extracts its content and metadata
+  #
+  # @param msg [Hash] raw message data from JSON
+  # @return [Hash] processed message hash with :id, :role, :content, :created_at, :files, :code_items
   def process_message(msg)
     # Extract the actual text content from the content array
     text_content = msg['content'].map { |c| c['text'] }.join("\n")
@@ -96,6 +104,10 @@ class ClaudeExportProcessor
     message_data
   end
 
+  # Parses a timestamp string into a Time object
+  #
+  # @param timestamp [String, nil] ISO 8601 timestamp string
+  # @return [Time] parsed time or current time if parsing fails
   def parse_timestamp(timestamp)
     return Time.now unless timestamp
     
@@ -105,7 +117,12 @@ class ClaudeExportProcessor
       Time.now
     end
   end
-  
+
+  # Extracts code blocks and artifacts from a message
+  #
+  # @param message_data [Hash] processed message data
+  # @param original_msg [Hash] original raw message from JSON
+  # @return [Array<Hash>] array of code item hashes
   def extract_code_items(message_data, original_msg)
     all_code_items = []
     
@@ -150,7 +167,11 @@ class ClaudeExportProcessor
     
     all_code_items
   end
-  
+
+  # Prints code snippets found in a message to stdout
+  #
+  # @param message_data [Hash] processed message data
+  # @param all_code_items [Array<Hash>] array of code items to print
   def print_code_snippets(message_data, all_code_items)
     puts "\n" + "="*70
     puts "📄 CODE SNIPPETS & ARTIFACTS FOUND IN MESSAGE #{message_data[:id][0..7]}..."
@@ -182,7 +203,11 @@ class ClaudeExportProcessor
     puts "📝 These will be included inline in the Redmine note content"
     puts "="*70
   end
-  
+
+  # Extracts programming language from artifact MIME type
+  #
+  # @param artifact_type [String, nil] artifact MIME type or language hint
+  # @return [String] detected language name
   def extract_language_from_artifact_type(artifact_type)
     case artifact_type
     when 'application/vnd.ant.code'
