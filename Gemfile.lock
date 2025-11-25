@@ -5,19 +5,16 @@ GEM
     fileutils (1.7.3)
     json (2.12.0)
     logger (1.7.0)
-    mini_portile2 (2.8.9)
-    net-http (0.6.0)
-      uri
+    net-http (0.8.0)
+      uri (>= 0.11.1)
     rubyzip (2.4.1)
-    sqlite3 (1.7.3)
-      mini_portile2 (~> 2.8.0)
     sqlite3 (1.7.3-aarch64-linux)
     sqlite3 (1.7.3-arm-linux)
     sqlite3 (1.7.3-arm64-darwin)
     sqlite3 (1.7.3-x86-linux)
     sqlite3 (1.7.3-x86_64-darwin)
     sqlite3 (1.7.3-x86_64-linux)
-    uri (1.0.3)
+    uri (1.1.1)
 
 PLATFORMS
   aarch64-linux
