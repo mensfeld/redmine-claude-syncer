@@ -1,6 +1,6 @@
 source 'https://rubygems.org'
 
-gem 'rubyzip', '~> 2.3'  # For handling ZIP files
+gem 'rubyzip', '~> 3.0'  # For handling ZIP files
 gem 'sqlite3', '~> 1.6'  # For database
 gem 'dotenv', '~> 2.8'  # For environment variables
 gem 'logger', '~> 1.5'  # For logging
