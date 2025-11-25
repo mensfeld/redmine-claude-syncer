@@ -30,30 +30,30 @@ class Database
 
   def create_conversation(conversation_id, redmine_issue_id, last_message_id)
     @db.execute(
-      "INSERT INTO conversations 
-       (claude_conversation_id, redmine_issue_id, last_exported_message_id, created_at, updated_at) 
+      "INSERT INTO conversations
+       (claude_conversation_id, redmine_issue_id, last_exported_message_id, created_at, updated_at)
        VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)",
-      conversation_id, redmine_issue_id, last_message_id
+      [conversation_id, redmine_issue_id, last_message_id]
     )
     @logger.info "Created conversation record for #{conversation_id}"
   end
 
   def update_last_message_id(conversation_id, last_message_id)
     @db.execute(
-      "UPDATE conversations 
-       SET last_exported_message_id = ?, updated_at = CURRENT_TIMESTAMP 
+      "UPDATE conversations
+       SET last_exported_message_id = ?, updated_at = CURRENT_TIMESTAMP
        WHERE claude_conversation_id = ?",
-      last_message_id, conversation_id
+      [last_message_id, conversation_id]
     )
     @logger.info "Updated last message ID for conversation #{conversation_id}"
   end
 
   def save_artifact(conversation_id, artifact_type, file_path, redmine_attachment_id)
     @db.execute(
-      "INSERT INTO artifacts 
-       (conversation_id, artifact_type, file_path, redmine_attachment_id) 
+      "INSERT INTO artifacts
+       (conversation_id, artifact_type, file_path, redmine_attachment_id)
        VALUES (?, ?, ?, ?)",
-      conversation_id, artifact_type, file_path, redmine_attachment_id
+      [conversation_id, artifact_type, file_path, redmine_attachment_id]
     )
   end
 

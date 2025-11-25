@@ -1,27 +1,48 @@
 name: CI
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
-  push:
-    branches: [master, main]
   pull_request:
-    branches: [master, main]
+    branches: [master]
+  schedule:
+    - cron: '0 1 * * *'
+
+permissions:
+  contents: read
 
 jobs:
-  test:
+  specs:
+    timeout-minutes: 15
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        ruby-version: ['3.2', '3.3', '3.4']
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Ruby ${{ matrix.ruby-version }}
-        uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ruby-version: ${{ matrix.ruby-version }}
+          fetch-depth: 0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@8aeb6ff8030dd539317f8e1769a044873b56ea71 # v1.268.0
+        with:
+          ruby-version: '3.4'
           bundler-cache: true
+          bundler: 'latest'
 
       - name: Run tests
         run: bundle exec rspec
+
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - specs
+    steps:
+      - name: Check all jobs passed
+        if: |
+          contains(needs.*.result, 'failure') ||
+          contains(needs.*.result, 'cancelled') ||
+          contains(needs.*.result, 'skipped')
+        run: exit 1
+      - run: echo "All CI checks passed!"
