@@ -4,7 +4,19 @@ require 'json'
 require 'logger'
 require 'fileutils'
 
+# HTTP client for interacting with the Redmine REST API
 class RedmineClient
+  # Creates a new Redmine API client
+  #
+  # @param url [String] base URL of the Redmine instance
+  # @param human_api_key [String] API key for the human user
+  # @param claude_api_key [String] API key for the Claude user
+  # @param project_id [String] target project identifier
+  # @param human_user_id [Integer] Redmine user ID for human
+  # @param claude_user_id [Integer] Redmine user ID for Claude
+  # @param tracker_id [Integer] issue tracker ID
+  # @param status_id [Integer] issue status ID
+  # @param priority_id [Integer] issue priority ID
   def initialize(url, human_api_key, claude_api_key, project_id, human_user_id, claude_user_id, tracker_id = 1, status_id = 1, priority_id = 2)
     @base_url = url.chomp('/')
     @human_api_key = human_api_key
@@ -18,6 +30,11 @@ class RedmineClient
     @logger = Logger.new('logs/redmine.log')
   end
 
+  # Creates a new issue in Redmine
+  #
+  # @param subject [String] issue subject/title
+  # @param description [String] issue description
+  # @return [Hash] created issue data from Redmine API
   def create_issue(subject, description)
     begin
       issue_data = {
@@ -67,6 +84,11 @@ class RedmineClient
     end
   end
 
+  # Updates an existing issue's description
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param description [String] new description content
+  # @return [Hash] updated issue data from Redmine API
   def update_issue(issue_id, description)
     begin
       response = make_request(
@@ -89,6 +111,12 @@ class RedmineClient
     end
   end
 
+  # Adds a note to an existing issue using the appropriate user's API key
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param content [String] note content
+  # @param user_id [Integer] user ID to attribute the note to
+  # @return [Hash, Boolean] issue data or true on success
   def add_note(issue_id, content, user_id)
     begin
       # Use the appropriate API key based on the user
@@ -139,6 +167,12 @@ class RedmineClient
     end
   end
 
+  # Attaches a file to an existing issue
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param file_path [String] path to the file to attach
+  # @param description [String, nil] optional description for the attachment
+  # @return [Hash] attachment data from Redmine API
   def attach_file(issue_id, file_path, description = nil)
     begin
       # First, upload the file to get a token
@@ -167,6 +201,10 @@ class RedmineClient
     end
   end
 
+  # Formats an array of messages into a readable conversation string
+  #
+  # @param messages [Array<Hash>] array of message objects with role, content, created_at
+  # @return [String] formatted conversation text
   def format_conversation(messages)
     formatted = messages.map do |msg|
       role = msg.role.capitalize
@@ -177,6 +215,10 @@ class RedmineClient
     formatted
   end
 
+  # Processes messages and adds them as notes to the issue
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param messages [Array<Hash>] array of message hashes
   def process_messages(issue_id, messages)
     messages.each do |msg|
       user_id = msg[:role] == 'human' ? @human_user_id : @claude_user_id
@@ -185,6 +227,10 @@ class RedmineClient
     end
   end
 
+  # Formats a message including any code snippets
+  #
+  # @param msg [Hash] message hash with :content, :code_items, :created_at keys
+  # @return [String] formatted message content
   def format_message_with_code(msg)
     content = msg[:content] || ""
     
@@ -196,7 +242,11 @@ class RedmineClient
     content += "\n\n*Posted at: #{msg[:created_at].strftime("%Y-%m-%d %H:%M:%S")}*"
     content
   end
-  
+
+  # Formats code snippets for display in Redmine
+  #
+  # @param code_items [Array<Hash>] array of code item hashes
+  # @return [String] formatted code snippets as markdown
   def format_code_snippets(code_items)
     formatted = "**📄 Code Snippets Found:**\n\n"
     

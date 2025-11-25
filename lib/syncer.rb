@@ -6,7 +6,11 @@ require 'fileutils'
 require 'date'
 require 'securerandom'
 
+# Main orchestrator that synchronizes Claude conversations to Redmine issues
 class Syncer
+  # Creates a new syncer with the given configuration
+  #
+  # @param config [Hash] configuration hash with Redmine and database settings
   def initialize(config)
     @config = config
     @logger = Logger.new(config[:log_file] || 'logs/sync.log')
@@ -26,6 +30,9 @@ class Syncer
     )
   end
 
+  # Synchronizes conversations from a Claude export ZIP to Redmine
+  #
+  # @param zip_path [String] path to the Claude export ZIP file
   def sync(zip_path)
     @logger.info "Starting synchronization process for export: #{zip_path}"
     
