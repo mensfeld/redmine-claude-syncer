@@ -3,6 +3,7 @@ require 'json'
 require 'logger'
 require 'fileutils'
 require 'date'
+require 'time'
 require 'digest'
 
 class ClaudeExportProcessor
