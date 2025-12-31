@@ -12,7 +12,7 @@ A Ruby application that synchronizes Claude AI conversations to Redmine issues.
 
 ## Requirements
 
-- Ruby 3.2 or later
+- Ruby 4.0 or later
 - Redmine instance with API access
 - SQLite3
 
