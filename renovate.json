@@ -32,5 +32,8 @@
   ],
   "bundler": {
     "enabled": true
+  },
+  "lockFileMaintenance": {
+    "enabled": true
   }
 }
