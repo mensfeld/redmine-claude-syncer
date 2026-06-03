@@ -29,6 +29,7 @@ GEM
     sqlite3 (2.9.4-x86_64-darwin)
     sqlite3 (2.9.4-x86_64-linux-gnu)
     uri (1.1.1)
+    warning (1.6.0)
     yard (0.9.43)
     yard-lint (1.5.1)
       yard (~> 0.9)
@@ -52,6 +53,7 @@ DEPENDENCIES
   rspec (~> 3.13)
   rubyzip (~> 3.0)
   sqlite3 (~> 2.0)
+  warning
   yard-lint
 
 BUNDLED WITH
