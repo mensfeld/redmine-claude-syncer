@@ -8,6 +8,10 @@ require 'securerandom'
 
 # Main orchestrator that synchronizes Claude conversations to Redmine issues
 class Syncer
+  # Content schema version of the importer. Conversations imported with an older
+  # version are superseded by a fresh, complete issue on the next run.
+  CONTENT_VERSION = 2
+
   # Creates a new syncer with the given configuration
   #
   # @param config [Hash] configuration hash with Redmine and database settings
@@ -15,6 +19,10 @@ class Syncer
     @config = config
     @logger = Logger.new(config[:log_file] || 'logs/sync.log')
     @logger.level = config[:log_level] ? Logger.const_get(config[:log_level]) : Logger::INFO
+
+    @human_user_id = config[:redmine_human_user_id]
+    @claude_user_id = config[:redmine_claude_user_id]
+    @closed_status_id = config[:redmine_closed_status_id] || 5
 
     @db = Database.new(config[:database_path] || 'db/conversations.db')
     @redmine = RedmineClient.new(
@@ -30,21 +38,20 @@ class Syncer
     )
   end
 
-  # Synchronizes conversations from a Claude export ZIP to Redmine
+  # Synchronizes conversations and projects from a Claude export ZIP to Redmine
   #
   # @param zip_path [String] path to the Claude export ZIP file
+  # @return [void]
   def sync(zip_path)
     @logger.info "Starting synchronization process for export: #{zip_path}"
-    
+
     begin
       processor = ClaudeExportProcessor.new(zip_path)
-      conversations = processor.process
-      
-      conversations.each do |conversation|
-        process_conversation(conversation)
-      end
 
-      @logger.info "Synchronization completed successfully"
+      sync_conversations(processor)
+      sync_projects(processor)
+
+      @logger.info "Synchronization completed"
     rescue StandardError => e
       @logger.error "Synchronization failed: #{e.message}"
       raise
@@ -53,76 +60,236 @@ class Syncer
 
   private
 
-  # Processes a single conversation, creating or updating the Redmine issue
+  # Synchronizes all conversations from the export
+  #
+  # @param processor [ClaudeExportProcessor] the export processor
+  # @return [void]
+  def sync_conversations(processor)
+    conversations = processor.process
+
+    succeeded = 0
+    failed = 0
+    conversations.each do |conversation|
+      process_conversation(conversation)
+      succeeded += 1
+    rescue StandardError => e
+      failed += 1
+      @logger.error "Failed to process conversation #{conversation[:id]}: #{e.message}"
+    end
+
+    @logger.info "Conversations completed: #{succeeded} succeeded, #{failed} failed"
+  end
+
+  # Synchronizes all Claude Projects from the export
+  #
+  # @param processor [ClaudeExportProcessor] the export processor
+  # @return [void]
+  def sync_projects(processor)
+    projects = processor.process_projects
+
+    projects.each do |project|
+      sync_project(project)
+    rescue StandardError => e
+      @logger.error "Failed to process project #{project[:id]}: #{e.message}"
+    end
+
+    @logger.info "Projects completed: #{projects.size} processed"
+  end
+
+  # Processes a single conversation, routing to create/supersede/update
   #
   # @param conversation [Hash] conversation data with :id, :messages keys
+  # @return [void]
   def process_conversation(conversation)
     @logger.info "Processing conversation #{conversation[:id]}"
 
-    # Check if conversation exists in database
     existing = @db.get_conversation(conversation[:id])
-    
-    if existing
-      update_existing_conversation(existing, conversation)
-    else
+
+    if existing.nil?
       create_new_conversation(conversation)
+    elsif existing[:content_version].to_i < CONTENT_VERSION
+      supersede_conversation(existing, conversation)
+    else
+      update_existing_conversation(existing, conversation)
     end
   end
 
-  # Updates an existing Redmine issue with new messages
+  # Creates a new Redmine issue with the full conversation content
+  #
+  # @param conversation [Hash] conversation data with :id, :title, :messages keys
+  # @return [void]
+  def create_new_conversation(conversation)
+    issue_id = import_conversation(conversation)
+    return unless issue_id
+
+    @db.create_conversation(
+      conversation[:id],
+      issue_id,
+      conversation[:messages].last[:id],
+      CONTENT_VERSION
+    )
+  end
+
+  # Replaces a partially-imported conversation with a fresh, complete issue
+  #
+  # The old issue is closed (not deleted) with a note pointing to the new one.
+  #
+  # @param existing [Hash] existing conversation record from database
+  # @param conversation [Hash] conversation data with :id, :title, :messages keys
+  # @return [void]
+  def supersede_conversation(existing, conversation)
+    old_issue_id = existing[:redmine_issue_id]
+
+    # Clear attachment tracking so everything re-uploads to the new issue
+    @db.reset_conversation_attachments(conversation[:id])
+
+    new_issue_id = import_conversation(conversation)
+    return unless new_issue_id
+
+    @redmine.close_issue(
+      old_issue_id,
+      "Superseded by ##{new_issue_id} — re-imported with complete content " \
+      "(thinking, tool calls & results, and all attachments).",
+      @closed_status_id
+    )
+
+    @db.repoint_conversation(
+      conversation[:id],
+      new_issue_id,
+      conversation[:messages].last[:id],
+      CONTENT_VERSION
+    )
+  end
+
+  # Updates an existing Redmine issue with new messages and backfills attachments
   #
   # @param existing [Hash] existing conversation record from database
   # @param conversation [Hash] conversation data with new messages
+  # @return [void]
   def update_existing_conversation(existing, conversation)
-    # Get messages that haven't been processed yet
+    issue_id = existing[:redmine_issue_id]
+
     new_messages = conversation[:messages].select do |msg|
       msg[:id] > existing[:last_exported_message_id]
     end
 
-    return if new_messages.empty?
-
-    # Add new messages as notes from respective users (including code snippets inline)
-    @redmine.process_messages(existing[:redmine_issue_id], new_messages)
-
-    # Update database with new last message ID
-    @db.update_last_message_id(
-      conversation[:id],
-      new_messages.last[:id]
-    )
-  end
-
-  # Creates a new Redmine issue for a conversation
-  #
-  # @param conversation [Hash] conversation data with :id, :title, :messages keys
-  def create_new_conversation(conversation)
-    # Skip empty conversations
-    if conversation[:messages].nil? || conversation[:messages].empty?
-      @logger.warn "Skipping empty conversation #{conversation[:id]}"
-      return
+    unless new_messages.empty?
+      @redmine.process_messages(issue_id, new_messages)
+      @db.update_last_message_id(conversation[:id], new_messages.last[:id])
     end
 
-    # Create new Redmine issue with initial description
-    title = conversation[:title].to_s.strip
-    title = "Claude Conversation #{conversation[:id]}" if title.empty?
-    
-    initial_description = "#{title}\n\n" \
-                        "This issue tracks a conversation between a human user and Claude AI.\n" \
-                        "Each message will be added as a note from the respective user."
-    
-    issue = @redmine.create_issue(
-      title,
-      initial_description
-    )
-
-    # Add all messages as notes from respective users (including code snippets inline)
-    @redmine.process_messages(issue['id'], conversation[:messages])
-
-    # Store in database
-    @db.create_conversation(
-      conversation[:id],
-      issue['id'],
-      conversation[:messages].last[:id]
-    )
+    # Always reconcile attachments so anything missing gets backfilled
+    sync_attachments(issue_id, conversation)
   end
 
-end 
+  # Creates an issue and imports the full conversation (messages + attachments)
+  #
+  # @param conversation [Hash] conversation data with :id, :title, :messages keys
+  # @return [Integer, nil] the new Redmine issue ID, or nil if the conversation is empty
+  def import_conversation(conversation)
+    if conversation[:messages].nil? || conversation[:messages].empty?
+      @logger.warn "Skipping empty conversation #{conversation[:id]}"
+      return nil
+    end
+
+    title = conversation[:title].to_s.strip
+    title = "Claude Conversation #{conversation[:id]}" if title.empty?
+
+    issue = @redmine.create_issue(title, conversation_description(title, conversation))
+    @redmine.process_messages(issue['id'], conversation[:messages])
+    sync_attachments(issue['id'], conversation)
+
+    issue['id']
+  end
+
+  # Builds the initial description for a conversation issue
+  #
+  # @param title [String] the conversation title
+  # @param conversation [Hash] conversation data with :id and :created_at keys
+  # @return [String] the issue description
+  def conversation_description(title, conversation)
+    "#{title}\n\n" \
+      "Backup of a conversation between a human user and Claude AI.\n" \
+      "Claude conversation ID: #{conversation[:id]}\n" \
+      "Started: #{conversation[:created_at]&.strftime('%Y-%m-%d %H:%M:%S')}\n\n" \
+      "Each message is added as a note from the respective user, including thinking, " \
+      "tool calls and results. Attachments and artifacts are attached to the relevant notes."
+  end
+
+  # Synchronizes a single Claude Project into a Redmine issue
+  #
+  # @param project [Hash] project data with :id, :name, :docs keys
+  # @return [void]
+  def sync_project(project)
+    existing = @db.get_project(project[:id])
+
+    issue_id = existing ? existing[:redmine_issue_id] : create_project_issue(project)
+
+    pending = project[:docs].reject { |doc| @db.attachment_synced?(doc[:key]) }
+    return if pending.empty?
+
+    @redmine.add_attachments(issue_id, pending, @human_user_id, "Project knowledge documents")
+    pending.each do |doc|
+      @db.record_attachment(project[:id], project[:id], doc[:key], doc[:kind], doc[:filename], nil)
+    end
+  end
+
+  # Creates the Redmine issue for a project and records it
+  #
+  # @param project [Hash] project data with :id, :name, :description keys
+  # @return [Integer] the new Redmine issue ID
+  def create_project_issue(project)
+    name = project[:name].to_s.strip
+    name = "Claude Project #{project[:id]}" if name.empty?
+
+    issue = @redmine.create_issue("Project: #{name}", project_description(project))
+    @db.create_project(project[:id], issue['id'])
+    issue['id']
+  end
+
+  # Builds the description for a project issue
+  #
+  # @param project [Hash] project data with :name, :description, :prompt_template keys
+  # @return [String] the issue description
+  def project_description(project)
+    parts = ["Claude Project backup: #{project[:name]}", '']
+    parts << project[:description] unless project[:description].to_s.strip.empty?
+
+    unless project[:prompt_template].to_s.strip.empty?
+      parts << "\n**Custom instructions:**\n\n#{project[:prompt_template]}"
+    end
+
+    parts << "\nClaude project ID: #{project[:id]}"
+    parts.join("\n")
+  end
+
+  # Uploads any not-yet-synced attachments for each message in the conversation
+  #
+  # This is idempotent: attachments already recorded in the database are skipped.
+  #
+  # @param issue_id [Integer] the Redmine issue ID
+  # @param conversation [Hash] conversation data with :id and :messages keys
+  # @return [void]
+  def sync_attachments(issue_id, conversation)
+    conversation[:messages].each do |msg|
+      pending = (msg[:attachments] || []).reject { |a| @db.attachment_synced?(a[:key]) }
+      next if pending.empty?
+
+      user_id = msg[:role] == 'human' ? @human_user_id : @claude_user_id
+      header = "Attachments from #{msg[:role]} message (#{msg[:created_at].strftime('%Y-%m-%d %H:%M:%S')})"
+
+      @redmine.add_attachments(issue_id, pending, user_id, header)
+
+      pending.each do |attachment|
+        @db.record_attachment(
+          conversation[:id],
+          msg[:id],
+          attachment[:key],
+          attachment[:kind],
+          attachment[:filename],
+          nil
+        )
+      end
+    end
+  end
+end
