@@ -58,6 +58,18 @@ Run the sync script with a Claude export ZIP file:
 ./bin/sync.rb path/to/export.zip
 ```
 
+### Importing Claude Code sessions
+
+You can also archive your local Claude Code coding sessions (the JSONL transcripts
+under `~/.claude/projects/`) into the same Redmine project:
+```bash
+./bin/sync_code.rb
+```
+Each session becomes an issue whose subject is prefixed with `[Claude Code]` (so it
+can be filtered/tagged), rendered the same way as conversations (text, thinking, tool
+calls and results, code blocks as files) with the raw `.jsonl` transcript attached for
+full fidelity. Override the location with `CLAUDE_PROJECTS_DIR` if it isn't `~/.claude/projects`.
+
 ## Directory Structure
 
 - `bin/` - Executable scripts

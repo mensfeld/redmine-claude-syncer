@@ -16,7 +16,8 @@ chmod +x bin/sync.rb              # Make sync script executable
 
 ### Running the Syncer
 ```bash
-./bin/sync.rb path/to/export.zip  # Sync Claude export to Redmine
+./bin/sync.rb path/to/export.zip  # Sync a Claude.ai export ZIP to Redmine
+./bin/sync_code.rb                # Sync local Claude Code sessions (~/.claude/projects)
 ```
 
 ### Environment Configuration
@@ -33,6 +34,7 @@ Create a `.env` file with these required variables:
 
 Optional configuration:
 - `REDMINE_CLOSED_STATUS_ID` - Status ID used when closing superseded issues (default: 5)
+- `CLAUDE_PROJECTS_DIR` - Claude Code transcripts dir for `bin/sync_code.rb` (default: ~/.claude/projects)
 - `DATABASE_PATH` - SQLite database path (default: db/conversations.db)
 - `LOG_FILE` - Log file path (default: logs/sync.log)
 - `LOG_LEVEL` - Logging level (DEBUG, INFO, WARN, ERROR)
@@ -51,6 +53,11 @@ Optional configuration:
 - Extracts conversations from Claude ZIP exports
 - Parses `conversations.json` files
 - Converts Claude message format to internal representation
+
+**ClaudeCodeProcessor** (`lib/claude_code_processor.rb`) - Claude Code session reader:
+- Subclass of ClaudeExportProcessor that reads `~/.claude/projects/*/*.jsonl` transcripts
+- Reuses the same renderer so coding sessions are archived like conversations
+- Attaches the raw transcript and prefixes issue subjects with `[Claude Code]`
 
 **RedmineClient** (`lib/redmine_client.rb`) - Redmine API interface:
 - Creates and updates Redmine issues
@@ -108,6 +115,24 @@ content hash) in the `attachments` table, so re-runs never create duplicates.
 with its description and `prompt_template`, and each knowledge doc is attached. Tracked in
 the `projects` table for idempotency.
 
+### Claude Code sessions
+
+`bin/sync_code.rb` archives local Claude Code coding sessions the same way as
+Claude.ai conversations. `ClaudeCodeProcessor` (`lib/claude_code_processor.rb`)
+reads the JSONL transcripts under `~/.claude/projects/*/*.jsonl`, and — being a
+subclass of `ClaudeExportProcessor` — reuses the exact same renderer (text,
+thinking, tool calls, tool results, code blocks as files). Per session:
+
+- The issue subject is prefixed `[Claude Code]` so sessions can be filtered/tagged.
+- The title comes from the transcript's `aiTitle` (falling back to the first prompt).
+- `cwd` and git branch are recorded in the description.
+- The raw `.jsonl` transcript is attached for full fidelity.
+- Conversation id is `cc-<sessionId>` so it never collides with Claude.ai conversations.
+
+Both entry points share the same `Syncer`, database and Redmine project. Because
+Claude Code uses random (non-time-ordered) message UUIDs, incremental detection is
+**position-based** (`Syncer#messages_after`), not id comparison.
+
 ### Re-import / superseding
 
 The importer stamps each conversation with `content_version` (see `Syncer::CONTENT_VERSION`).
@@ -146,7 +171,8 @@ upgraded to full content. Once at the current version, runs are incremental.
 
 ## File Structure
 
-- `bin/sync.rb` - Entry point executable script
+- `bin/sync.rb` - Entry point for Claude.ai export ZIPs
+- `bin/sync_code.rb` - Entry point for Claude Code sessions (~/.claude/projects)
 - `lib/` - Core Ruby classes and business logic
 - `db/` - SQLite database files
 - `logs/` - Application log files (separate logs per component)

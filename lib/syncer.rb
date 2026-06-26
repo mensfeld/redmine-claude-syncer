@@ -43,13 +43,19 @@ class Syncer
   # @param zip_path [String] path to the Claude export ZIP file
   # @return [void]
   def sync(zip_path)
-    @logger.info "Starting synchronization process for export: #{zip_path}"
+    import(ClaudeExportProcessor.new(zip_path))
+  end
+
+  # Synchronizes conversations (and projects) from any export processor
+  #
+  # @param processor [#process] an export processor responding to #process
+  # @return [void]
+  def import(processor)
+    @logger.info "Starting synchronization process"
 
     begin
-      processor = ClaudeExportProcessor.new(zip_path)
-
       sync_conversations(processor)
-      sync_projects(processor)
+      sync_projects(processor) if processor.respond_to?(:process_projects)
 
       @logger.info "Synchronization completed"
     rescue StandardError => e
@@ -169,9 +175,7 @@ class Syncer
   def update_existing_conversation(existing, conversation)
     issue_id = existing[:redmine_issue_id]
 
-    new_messages = conversation[:messages].select do |msg|
-      msg[:id] > existing[:last_exported_message_id]
-    end
+    new_messages = messages_after(conversation[:messages], existing[:last_exported_message_id])
 
     unless new_messages.empty?
       @redmine.process_messages(issue_id, new_messages)
@@ -180,6 +184,26 @@ class Syncer
 
     # Always reconcile attachments so anything missing gets backfilled
     sync_attachments(issue_id, conversation)
+  end
+
+  # Returns the messages that come after the last-processed message, by position
+  #
+  # Position-based (not id comparison) so it works for both time-ordered Claude.ai
+  # message UUIDs and the random UUIDs used by Claude Code transcripts.
+  #
+  # @param messages [Array<Hash>] all messages of the conversation in order
+  # @param last_id [String, nil] UUID of the last processed message
+  # @return [Array<Hash>] messages after last_id (empty if none or not found)
+  def messages_after(messages, last_id)
+    return messages if last_id.nil? || last_id.to_s.empty?
+
+    index = messages.index { |msg| msg[:id] == last_id }
+    if index.nil?
+      @logger.warn "Last processed message #{last_id} not found; skipping to avoid duplicates" unless messages.empty?
+      return []
+    end
+
+    messages[(index + 1)..] || []
   end
 
   # Creates an issue and imports the full conversation (messages + attachments)
@@ -208,12 +232,19 @@ class Syncer
   # @param conversation [Hash] conversation data with :id and :created_at keys
   # @return [String] the issue description
   def conversation_description(title, conversation)
-    "#{title}\n\n" \
-      "Backup of a conversation between a human user and Claude AI.\n" \
-      "Claude conversation ID: #{conversation[:id]}\n" \
-      "Started: #{conversation[:created_at]&.strftime('%Y-%m-%d %H:%M:%S')}\n\n" \
-      "Each message is added as a note from the respective user, including thinking, " \
-      "tool calls and results. Attachments and artifacts are attached to the relevant notes."
+    lines = [
+      title,
+      '',
+      'Backup of a conversation between a human user and Claude AI.',
+      "Claude conversation ID: #{conversation[:id]}",
+      "Started: #{conversation[:created_at]&.strftime('%Y-%m-%d %H:%M:%S')}"
+    ]
+    lines << "Working directory: #{conversation[:cwd]}" if conversation[:cwd]
+    lines << "Git branch: #{conversation[:git_branch]}" if conversation[:git_branch]
+    lines << ''
+    lines << 'Each message is added as a note from the respective user, including thinking, ' \
+             'tool calls and results. Attachments and artifacts are attached to the relevant notes.'
+    lines.join("\n")
   end
 
   # Synchronizes a single Claude Project into a Redmine issue
