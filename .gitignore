@@ -25,6 +25,13 @@ db/
 # Artifacts
 artifacts/
 
+# Claude export data dumps (never commit conversation backups)
+data-*.zip
+*.dms
+
+# Local Claude Code settings
+.claude/
+
 # Documentation
 .yardoc/
 

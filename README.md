@@ -4,11 +4,15 @@ A Ruby application that synchronizes Claude AI conversations to Redmine issues.
 
 ## Features
 
-- Imports conversations from Claude export ZIP files
-- Creates Redmine issues for each conversation
-- Adds messages as notes from respective users
-- Tracks conversation state in SQLite database
-- Handles retries and error recovery
+- Imports conversations from Claude export ZIP files as a complete backup
+- Renders the full message content as notes: text, thinking, tool calls and tool results
+- Uploads all attachments and artifacts: user documents, Claude artifacts, created files
+  (final version after edits), inline code blocks, and oversized blocks as files
+- Imports Claude Projects (description, custom instructions and knowledge docs)
+- Supersedes partial older imports: creates a complete new issue and closes (never deletes) the old one
+- Idempotent: tracks conversations by content version and attachments by key, so re-runs don't duplicate
+- Tracks conversation, attachment and project state in SQLite
+- Handles retries and error recovery, skipping (and logging) any item that fails
 
 ## Requirements
 

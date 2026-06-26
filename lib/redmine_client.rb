@@ -111,27 +111,54 @@ class RedmineClient
     end
   end
 
+  # Closes an issue, setting its status and adding an explanatory note
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param note [String] note explaining why the issue is being closed
+  # @param status_id [Integer] the closed status ID to set
+  # @return [Boolean] true once the issue has been closed
+  def close_issue(issue_id, note, status_id)
+    make_request(
+      'PUT',
+      "/issues/#{issue_id}.json",
+      {
+        issue: {
+          status_id: status_id,
+          notes: note
+        }
+      },
+      @human_api_key
+    )
+    @logger.info "Closed issue ##{issue_id} (status #{status_id})"
+    true
+  rescue StandardError => e
+    @logger.error "Failed to close issue ##{issue_id}: #{e.message}"
+    raise
+  end
+
   # Adds a note to an existing issue using the appropriate user's API key
   #
   # @param issue_id [Integer] Redmine issue ID
   # @param content [String] note content
   # @param user_id [Integer] user ID to attribute the note to
+  # @param uploads [Array<Hash>] upload descriptors with :token, :filename, :content_type keys
   # @return [Hash, Boolean] issue data or true on success
-  def add_note(issue_id, content, user_id)
+  def add_note(issue_id, content, user_id, uploads = [])
     begin
       # Use the appropriate API key based on the user
       api_key = user_id == @human_user_id ? @human_api_key : @claude_api_key
-      
+
       # Sanitize content to remove problematic characters
       sanitized_content = content.encode('UTF-8', 'UTF-8', invalid: :replace, undef: :replace, replace: '')
-      
+
+      issue_payload = { notes: sanitized_content }
+      issue_payload[:uploads] = uploads if uploads && !uploads.empty?
+
       response = make_request(
         'PUT',
         "/issues/#{issue_id}.json",
         {
-          issue: {
-            notes: sanitized_content
-          }
+          issue: issue_payload
         },
         api_key
       )
@@ -219,12 +246,51 @@ class RedmineClient
   #
   # @param issue_id [Integer] Redmine issue ID
   # @param messages [Array<Hash>] array of message hashes
+  # @return [void]
   def process_messages(issue_id, messages)
     messages.each do |msg|
       user_id = msg[:role] == 'human' ? @human_user_id : @claude_user_id
       content = format_message_with_code(msg)
       add_note(issue_id, content, user_id)
     end
+  end
+
+  # Uploads a message's attachments and posts them as a note on the issue
+  #
+  # Attachments that carry content are uploaded to Redmine and attached to the
+  # note; attachments without content (e.g. user images missing from the export)
+  # are only referenced by name. The note is attributed to the given user.
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param attachments [Array<Hash>] attachment hashes from the export processor
+  # @param user_id [Integer] user ID to attribute the note to
+  # @param header [String] heading line describing the source of the attachments
+  # @return [Boolean] true once the attachment note has been posted
+  def add_attachments(issue_id, attachments, user_id, header)
+    return true if attachments.empty?
+
+    api_key = user_id == @human_user_id ? @human_api_key : @claude_api_key
+
+    uploads = []
+    lines = ["*#{header}*", '']
+
+    attachments.each do |attachment|
+      if attachment[:available] && attachment[:content]
+        token = upload_content(attachment[:content], api_key)
+        uploads << {
+          token: token,
+          filename: attachment[:filename],
+          content_type: attachment[:content_type]
+        }
+        lines << "* 📎 *#{attachment[:filename]}* — #{attachment[:description]}"
+      else
+        lines << "* 📎 *#{attachment[:filename]}* — #{attachment[:description]}"
+      end
+    end
+
+    add_note(issue_id, lines.join("\n"), user_id, uploads)
+    @logger.info "Posted #{uploads.size} upload(s) and #{attachments.size} attachment reference(s) to issue ##{issue_id}"
+    true
   end
 
   # Formats a message including any code snippets
@@ -336,6 +402,34 @@ class RedmineClient
         raise
       end
     end
+  end
+
+  # Uploads in-memory content to Redmine and returns the upload token
+  #
+  # @param content [String] the file content to upload
+  # @param api_key [String] API key for authentication
+  # @return [String] the upload token returned by Redmine
+  def upload_content(content, api_key)
+    uri = URI.parse("#{@base_url}/uploads.json")
+
+    request = Net::HTTP::Post.new(uri)
+    request['X-Redmine-API-Key'] = api_key
+    request['Content-Type'] = 'application/octet-stream'
+    request.body = content.to_s.dup.force_encoding(Encoding::BINARY)
+
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = uri.scheme == 'https'
+    http.read_timeout = 60
+    http.open_timeout = 30
+    response = http.request(request)
+
+    unless response.is_a?(Net::HTTPSuccess)
+      raise "Failed to upload content: #{response.code} - #{response.body}"
+    end
+
+    token = JSON.parse(response.body)['upload']['token']
+    @logger.info "Uploaded #{content.to_s.bytesize} bytes, received token"
+    token
   end
 
   # Uploads a file to Redmine and returns the upload token

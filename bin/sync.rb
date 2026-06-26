@@ -30,6 +30,7 @@ config = {
   redmine_tracker_id: ENV['REDMINE_TRACKER_ID'],
   redmine_status_id: ENV['REDMINE_STATUS_ID'],
   redmine_priority_id: ENV['REDMINE_PRIORITY_ID'],
+  redmine_closed_status_id: ENV['REDMINE_CLOSED_STATUS_ID'],
   database_path: ENV['DATABASE_PATH'],
   log_file: ENV['LOG_FILE'],
   log_level: ENV['LOG_LEVEL']&.upcase
