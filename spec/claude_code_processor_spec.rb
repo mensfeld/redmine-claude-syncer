@@ -69,9 +69,11 @@ RSpec.describe ClaudeCodeProcessor do
     expect(assistant[:content]).to include('Tool call — `Bash`')
   end
 
-  it 'renders tool results from user records' do
-    expect(session[:messages].last[:content]).to include('📥 Result')
-    expect(session[:messages].last[:content]).to include('total 0')
+  it 'renders tool results from user records inside a code fence' do
+    last = session[:messages].last[:content]
+    expect(last).to include('📥 Result')
+    expect(last).to include('total 0')
+    expect(last).to match(/```\s*\ntotal 0\n```/)
   end
 
   it 'extracts inline code blocks as files' do

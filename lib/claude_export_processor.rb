@@ -262,7 +262,7 @@ class ClaudeExportProcessor
         )
         ["**🔧 Tool call — `#{name}`** _(large input — attached as `#{filename}`)_", [att]]
       else
-        ["**🔧 Tool call — `#{name}`:**\n\n```json\n#{pretty}\n```", []]
+        ["**🔧 Tool call — `#{name}`:**\n\n#{fenced(pretty, 'json')}", []]
       end
     end
   end
@@ -285,7 +285,7 @@ class ClaudeExportProcessor
       )
       ["**✏️ Claude edited `#{base}`** _(large diff — attached as `#{filename}`)_", [att]]
     else
-      ["**✏️ Claude edited `#{base}`:**\n\n_Replaced:_\n\n```\n#{input['old_str']}\n```\n\n_With:_\n\n```\n#{input['new_str']}\n```", []]
+      ["**✏️ Claude edited `#{base}`:**\n\n_Replaced:_\n\n#{fenced(input['old_str'])}\n\n_With:_\n\n#{fenced(input['new_str'])}", []]
     end
   end
 
@@ -314,24 +314,31 @@ class ClaudeExportProcessor
     end
   end
 
-  # Renders the content items of a tool result into readable text
+  # Renders the content items of a tool result into readable markdown
   #
-  # @param content [Object] the tool result content (usually an array of items)
+  # Plain output (command output, file contents) is wrapped in a code fence so it
+  # renders as preformatted text; web-search results stay as markdown links.
+  #
+  # @param content [Object] the tool result content (string or array of items)
   # @return [String] readable representation of the result
   def render_result_items(content)
-    return content.to_s unless content.is_a?(Array)
+    unless content.is_a?(Array)
+      text = content.to_s
+      return text.strip.empty? ? '' : fenced(text)
+    end
 
-    content.map { |item| render_result_item(item) }.compact.join("\n")
+    content.filter_map { |item| render_result_item(item) }.join("\n\n")
   end
 
   # Renders a single tool-result content item
   #
   # @param item [Hash] a single tool-result content item
-  # @return [String, nil] readable line(s) or nil when empty
+  # @return [String, nil] readable markdown or nil when empty
   def render_result_item(item)
     case item['type']
     when 'text'
-      item['text'].to_s
+      text = item['text'].to_s
+      text.strip.empty? ? nil : fenced(text)
     when 'knowledge'
       head = item['title'].to_s.empty? ? item['url'].to_s : item['title'].to_s
       link = item['url'].to_s.empty? ? "- #{head}" : "- [#{head}](#{item['url']})"
@@ -346,6 +353,18 @@ class ClaudeExportProcessor
     else
       "- (#{item['type']})"
     end
+  end
+
+  # Wraps text in a Markdown code fence sized to survive any backticks inside it
+  #
+  # @param text [String] the text to wrap
+  # @param language [String] optional code fence language hint
+  # @return [String] the fenced code block
+  def fenced(text, language = '')
+    body = text.to_s
+    longest_run = body.scan(/`+/).map(&:length).max || 0
+    fence = '`' * [longest_run + 1, 3].max
+    "#{fence}#{language}\n#{body}\n#{fence}"
   end
 
   # Parses a timestamp string into a Time object
