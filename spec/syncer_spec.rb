@@ -61,4 +61,24 @@ RSpec.describe Syncer do
       expect(syncer.send(:messages_after, shuffled, 'zzz')).to eq([{ id: 'aaa' }, { id: 'mmm' }])
     end
   end
+
+  describe '#ordered_by_creation' do
+    let(:syncer) do
+      described_class.new(
+        database_path: 'tmp/test_conversations.db', log_file: 'tmp/test.log', log_level: 'ERROR',
+        redmine_url: 'https://redmine.example.com', redmine_human_api_key: 'h',
+        redmine_claude_api_key: 'c', redmine_project_id: 'p',
+        redmine_human_user_id: 1, redmine_claude_user_id: 2
+      )
+    end
+
+    it 'sorts items oldest-first by created_at' do
+      items = [
+        { id: 'new', created_at: Time.new(2026, 3, 1) },
+        { id: 'old', created_at: Time.new(2024, 1, 1) },
+        { id: 'mid', created_at: Time.new(2025, 6, 1) }
+      ]
+      expect(syncer.send(:ordered_by_creation, items).map { |i| i[:id] }).to eq(%w[old mid new])
+    end
+  end
 end

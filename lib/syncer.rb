@@ -67,12 +67,24 @@ class Syncer
 
   private
 
+  # Orders items oldest-first by their original creation time
+  #
+  # Ensures issues are created chronologically so newer conversations get higher
+  # issue IDs (so the natural card order matches the conversation timeline).
+  #
+  # @param items [Array<Hash>] items with a :created_at key
+  # @return [Array<Hash>] the items sorted by :created_at ascending
+  def ordered_by_creation(items)
+    items.sort_by { |item| item[:created_at] || Time.at(0) }
+  end
+
   # Synchronizes all conversations from the export
   #
   # @param processor [ClaudeExportProcessor] the export processor
   # @return [void]
   def sync_conversations(processor)
-    conversations = processor.process
+    # Create oldest-first so newer conversations get higher issue IDs (natural order)
+    conversations = ordered_by_creation(processor.process)
 
     succeeded = 0
     failed = 0
@@ -92,7 +104,7 @@ class Syncer
   # @param processor [ClaudeExportProcessor] the export processor
   # @return [void]
   def sync_projects(processor)
-    projects = processor.process_projects
+    projects = ordered_by_creation(processor.process_projects)
 
     projects.each do |project|
       sync_project(project)
