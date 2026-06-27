@@ -48,29 +48,37 @@ REDMINE_STATUS_ID=1
 REDMINE_PRIORITY_ID=2
 ```
 
-4. Make the sync script executable:
+4. Make the sync scripts executable:
 ```bash
-chmod +x bin/sync.rb
+chmod +x bin/sync.rb bin/sync_code.rb
 ```
 
 ## Usage
 
-Run the sync script with a Claude export ZIP file:
+There are two importers. Both are **incremental and idempotent** — run them as often
+as you like (e.g. weekly); they only add what's new and never duplicate.
+
+**Claude.ai conversations** — from an export ZIP:
 ```bash
 ./bin/sync.rb path/to/export.zip
 ```
 
-### Importing Claude Code sessions
-
-You can also archive your local Claude Code coding sessions (the JSONL transcripts
-under `~/.claude/projects/`) into the same Redmine project:
+**Claude Code coding sessions** — from your local transcripts under `~/.claude/projects/`:
 ```bash
 ./bin/sync_code.rb
 ```
-Each session becomes an issue whose subject is prefixed with `[Claude Code]` (so it
-can be filtered/tagged), rendered the same way as conversations (text, thinking, tool
-calls and results, code blocks as files) with the raw `.jsonl` transcript attached for
-full fidelity. Override the location with `CLAUDE_PROJECTS_DIR` if it isn't `~/.claude/projects`.
+(Override the location with `CLAUDE_PROJECTS_DIR` if it isn't `~/.claude/projects`.)
+
+Both write to the same Redmine project and the same SQLite database (keep using the
+same `db/conversations.db` so re-runs know what's already imported). On each run:
+
+- New conversations/sessions become issues (created oldest-first so issue IDs follow the timeline).
+- Existing ones get only their new messages appended.
+- Each issue is tagged by source — `claude` + `web`, `coding-session` + `claude-code` + `<project>`,
+  or `claude` + `project` — so you can filter by type/agent/project.
+- `start_date` is set to the conversation's original date; each note also leads with its timestamp.
+- The full message content is rendered (text, thinking, tool calls/results); attachments,
+  artifacts, created files and code blocks are uploaded; coding sessions also attach the raw `.jsonl`.
 
 ## Directory Structure
 

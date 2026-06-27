@@ -197,10 +197,10 @@ class Syncer
       @db.update_last_message_id(conversation[:id], new_messages.last[:id])
     end
 
-    # Always reconcile attachments so anything missing gets backfilled
+    # Always reconcile attachments so anything new on the conversation is uploaded
     sync_attachments(issue_id, conversation)
 
-    # Ensure tags on existing issues too (backfills issues imported before tagging)
+    # Ensure tags are present (no-op once applied, tracked via tags_applied)
     apply_tags(issue_id, conversation, fresh: false)
   end
 
