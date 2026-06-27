@@ -93,8 +93,11 @@ work.each do |iid, cid, base_tags, coding|
       payload[:start_date] = m[1]; dated += 1
     end
     subj = issue['subject'].to_s
-    if coding && subj.start_with?('[Claude Code] ')
-      payload[:subject] = subj.sub(/^\[Claude Code\]\s*/, ''); renamed += 1
+    if coding
+      clean = subj.sub(/^\[Claude Code\]\s*/, '').gsub(/[\[\]]/, '').gsub(/\s+/, ' ').strip
+      if !clean.empty? && clean != subj
+        payload[:subject] = clean; renamed += 1
+      end
     end
 
     p = request(http, Net::HTTP::Put, "/issues/#{iid}.json", { issue: payload })

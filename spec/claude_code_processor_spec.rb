@@ -63,6 +63,15 @@ RSpec.describe ClaudeCodeProcessor do
     expect(session[:tags]).to eq(%w[coding-session claude-code workspace])
   end
 
+  it 'strips square brackets from the title' do
+    bracketed = records.map do |r|
+      r['type'] == 'ai-title' ? r.merge('aiTitle' => '[SUGGESTION MODE: do a thing]') : r
+    end
+    File.write(session_path, bracketed.map(&:to_json).join("\n"))
+    title = described_class.new(projects_dir).process.first[:title]
+    expect(title).to eq('SUGGESTION MODE: do a thing')
+  end
+
   it 'maps roles and skips meta records' do
     expect(session[:messages].map { |m| m[:role] }).to eq(%w[human assistant human])
   end

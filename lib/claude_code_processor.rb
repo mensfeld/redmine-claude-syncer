@@ -164,7 +164,9 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # @return [String] the session title
   def session_title(records, session_id)
     ai_title = records.select { |r| r['type'] == 'ai-title' }.filter_map { |r| r['aiTitle'] }.last
-    title = ai_title || first_user_prompt(records) || session_id
+    # Strip square brackets — some aiTitles are wrapped like "[SUGGESTION MODE: ...]"
+    title = (ai_title || first_user_prompt(records) || '').to_s.gsub(/[\[\]]/, '').gsub(/\s+/, ' ').strip
+    title = "session #{session_id}" if title.empty?
     title.length > 200 ? title[0, 200] : title
   end
 
