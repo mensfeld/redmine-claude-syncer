@@ -104,6 +104,21 @@ RSpec.describe Database do
     end
   end
 
+  describe 'applied tags tracking' do
+    let(:db) { described_class.new(db_path) }
+
+    it 'returns no applied tags by default' do
+      db.create_conversation('c', 1, 'm', 3)
+      expect(db.get_applied_tags('c')).to eq([])
+    end
+
+    it 'stores and reads back applied tags' do
+      db.create_conversation('c', 1, 'm', 3)
+      db.set_applied_tags('c', %w[coding-session claude-code])
+      expect(db.get_applied_tags('c')).to eq(%w[coding-session claude-code])
+    end
+  end
+
   describe '#get_project and #create_project' do
     let(:db) { described_class.new(db_path) }
 

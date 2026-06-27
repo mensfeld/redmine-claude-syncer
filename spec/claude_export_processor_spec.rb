@@ -60,6 +60,10 @@ RSpec.describe ClaudeExportProcessor do
         expect(conversations.first[:id]).to eq('test-conversation-uuid')
         expect(conversations.first[:title]).to eq('Test Conversation')
       end
+
+      it 'tags conversations as claude + web' do
+        expect(described_class.new(zip_path).process.first[:tags]).to eq(%w[claude web])
+      end
     end
 
     context 'with attachments and artifacts' do

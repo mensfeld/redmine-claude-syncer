@@ -125,6 +125,32 @@ class Database
     @logger.info "Recorded #{kind} attachment '#{filename}' for conversation #{conversation_id}"
   end
 
+  # Retrieves the tags already applied to a conversation's issue by the importer
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @return [Array<String>] the tags previously applied (empty if none)
+  def get_applied_tags(conversation_id)
+    row = @db.get_first_row(
+      "SELECT tags_applied FROM conversations WHERE claude_conversation_id = ?",
+      conversation_id
+    )
+    return [] unless row && row[0]
+
+    row[0].split(',').map(&:strip).reject(&:empty?)
+  end
+
+  # Records the tags applied to a conversation's issue
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @param tags [Array<String>] the full set of tags now applied
+  # @return [void]
+  def set_applied_tags(conversation_id, tags)
+    @db.execute(
+      "UPDATE conversations SET tags_applied = ? WHERE claude_conversation_id = ?",
+      [tags.join(','), conversation_id]
+    )
+  end
+
   # Retrieves a project record by its Claude project ID
   #
   # @param project_id [String] the Claude project UUID
@@ -194,6 +220,7 @@ class Database
     SQL
 
     ensure_column('conversations', 'content_version', 'INTEGER DEFAULT 0')
+    ensure_column('conversations', 'tags_applied', 'TEXT')
 
     @logger.info "Database initialized at #{@db_path}"
   rescue SQLite3::Exception => e
