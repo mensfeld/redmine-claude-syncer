@@ -59,8 +59,8 @@ RSpec.describe ClaudeCodeProcessor do
     expect(session[:git_branch]).to eq('main')
   end
 
-  it 'tags the session as coding-session + claude-code' do
-    expect(session[:tags]).to eq(%w[coding-session claude-code])
+  it 'tags the session as coding-session + claude-code + project name from cwd' do
+    expect(session[:tags]).to eq(%w[coding-session claude-code workspace])
   end
 
   it 'maps roles and skips meta records' do

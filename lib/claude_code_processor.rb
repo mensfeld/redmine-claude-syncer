@@ -11,7 +11,7 @@ require 'digest'
 # {Syncer} already understands, so coding sessions are archived in Redmine the
 # same way as Claude.ai conversations.
 class ClaudeCodeProcessor < ClaudeExportProcessor
-  # Tags applied to every coding-session issue (source is differentiated by tags)
+  # Base tags applied to every coding-session issue (project tag is appended)
   SESSION_TAGS = %w[coding-session claude-code].freeze
 
   # Record types that carry conversational messages
@@ -67,16 +67,36 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     attach_raw_transcript(messages.first, session_id, path)
 
     timestamps = records.filter_map { |r| r['timestamp'] }.sort
+    cwd = records.filter_map { |r| r['cwd'] }.first
     {
       id: "cc-#{session_id}",
       title: session_title(records, session_id),
       messages: messages,
       created_at: parse_timestamp(timestamps.first),
       updated_at: parse_timestamp(timestamps.last),
-      cwd: records.filter_map { |r| r['cwd'] }.first,
+      cwd: cwd,
       git_branch: records.filter_map { |r| r['gitBranch'] }.first,
-      tags: SESSION_TAGS.dup
+      tags: session_tags(cwd)
     }
+  end
+
+  # Builds the tag list for a coding session, appending the project name from cwd
+  #
+  # @param cwd [String, nil] the working directory of the session
+  # @return [Array<String>] tags for the session issue
+  def session_tags(cwd)
+    project = project_name(cwd)
+    project.empty? ? SESSION_TAGS.dup : SESSION_TAGS + [project]
+  end
+
+  # Derives a downcased project tag from a working directory (its basename)
+  #
+  # @param cwd [String, nil] the working directory of the session
+  # @return [String] the sanitized project name (empty if unknown)
+  def project_name(cwd)
+    return '' if cwd.to_s.empty?
+
+    File.basename(cwd.to_s).downcase.gsub(/\s+/, '-').gsub(/[^a-z0-9._-]/, '')
   end
 
   # Determines whether a record is a conversational message worth rendering

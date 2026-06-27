@@ -2,14 +2,25 @@
 # One-off backfill: set tags + start_date (+ strip "[Claude Code] " prefix) on
 # existing Redmine issues, driven by the local DB. Idempotent (replace tags).
 #   ruby backfill_tags.rb canary   -> a few issues only
+#   ruby backfill_tags.rb coding   -> coding sessions only
 #   ruby backfill_tags.rb          -> everything
 require 'dotenv'; Dotenv.load
 require 'net/http'; require 'json'; require 'uri'; require 'sqlite3'
 
+$stdout.sync = true
 BASE = ENV['REDMINE_URL'].chomp('/')
 HKEY = ENV['REDMINE_HUMAN_API_KEY']
 DBP  = ENV['DATABASE_PATH'] || 'db/conversations.db'
-CANARY = ARGV[0] == 'canary'
+MODE = ARGV[0] # nil (all), 'canary' (a few), 'coding' (coding sessions only)
+CANARY = MODE == 'canary'
+
+# Derives a downcased project tag from a working directory path (its basename)
+def project_tag(cwd)
+  return nil if cwd.to_s.strip.empty?
+
+  name = File.basename(cwd.to_s.strip).downcase.gsub(/\s+/, '-').gsub(/[^a-z0-9._-]/, '')
+  name.empty? ? nil : name
+end
 
 db = SQLite3::Database.new(DBP)
 
@@ -39,7 +50,7 @@ def request(http, klass, path, body = nil)
   end
 end
 
-# Build work list from the DB: [issue_id, conv_id|nil, tags, coding?]
+# Build work list from the DB: [issue_id, conv_id|nil, base_tags, coding?]
 work = []
 db.execute('SELECT claude_conversation_id, redmine_issue_id FROM conversations').each do |cid, iid|
   next unless iid
@@ -50,17 +61,15 @@ db.execute('SELECT redmine_issue_id FROM projects').each do |iid,|
   work << [iid, nil, %w[claude project], false] if iid
 end
 
+work.select! { |w| w[3] } if MODE == 'coding'
 if CANARY
-  coding = work.find { |w| w[3] }
-  web    = work.find { |w| !w[3] && w[1] }
-  proj   = work.find { |w| w[1].nil? }
-  work = [coding, web, proj].compact
+  work = [work.find { |w| w[3] }, work.find { |w| !w[3] && w[1] }, work.find { |w| w[1].nil? }].compact
 end
 
-puts "issues to process: #{work.size}#{CANARY ? ' (canary)' : ''}"
+puts "issues to process: #{work.size} (mode: #{MODE || 'all'})"
 
-done = failed = renamed = dated = 0
-work.each do |iid, cid, tags, coding|
+done = failed = renamed = dated = projected = 0
+work.each do |iid, cid, base_tags, coding|
   begin
     g = request(http, Net::HTTP::Get, "/issues/#{iid}.json")
     if g.code.to_i == 404
@@ -68,14 +77,26 @@ work.each do |iid, cid, tags, coding|
       next
     end
     issue = JSON.parse(g.body)['issue']
+    desc = issue['description'].to_s
+
+    tags = base_tags.dup
+    if coding && (wd = desc.match(/Working directory:\s*(.+)/))
+      pt = project_tag(wd[1])
+      if pt
+        tags << pt
+        projected += 1
+      end
+    end
+
     payload = { tag_list: tags }
-    if (m = issue['description'].to_s.match(/Started:\s*(\d{4}-\d{2}-\d{2})/))
+    if (m = desc.match(/Started:\s*(\d{4}-\d{2}-\d{2})/))
       payload[:start_date] = m[1]; dated += 1
     end
     subj = issue['subject'].to_s
     if coding && subj.start_with?('[Claude Code] ')
       payload[:subject] = subj.sub(/^\[Claude Code\]\s*/, ''); renamed += 1
     end
+
     p = request(http, Net::HTTP::Put, "/issues/#{iid}.json", { issue: payload })
     unless p.code.to_i.between?(200, 299)
       warn "PUT #{iid} -> #{p.code}"
@@ -84,14 +105,12 @@ work.each do |iid, cid, tags, coding|
     end
     db.execute('UPDATE conversations SET tags_applied=? WHERE claude_conversation_id=?', [tags.join(','), cid]) if cid
     done += 1
-    if CANARY
-      puts "##{iid} coding=#{coding} tags=#{tags.join(',')} start=#{payload[:start_date] || '-'} subj=#{payload[:subject] || issue['subject']}"
-    end
+    puts "##{iid} tags=#{tags.join(',')} start=#{payload[:start_date] || '-'} subj=#{payload[:subject] || issue['subject']}" if CANARY
   rescue StandardError => e
     warn "issue #{iid}: #{e.message}"
     failed += 1
   end
-  puts "progress: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated" if !CANARY && (done + failed) % 250 == 0
+  puts "progress: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated, #{projected} project-tagged" if !CANARY && (done + failed) % 250 == 0
 end
 
-puts "FINAL: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated of #{work.size}"
+puts "FINAL: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated, #{projected} project-tagged of #{work.size}"
