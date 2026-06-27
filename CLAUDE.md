@@ -123,11 +123,32 @@ reads the JSONL transcripts under `~/.claude/projects/*/*.jsonl`, and — being 
 subclass of `ClaudeExportProcessor` — reuses the exact same renderer (text,
 thinking, tool calls, tool results, code blocks as files). Per session:
 
-- The issue subject is prefixed `[Claude Code]` so sessions can be filtered/tagged.
 - The title comes from the transcript's `aiTitle` (falling back to the first prompt).
 - `cwd` and git branch are recorded in the description.
 - The raw `.jsonl` transcript is attached for full fidelity.
 - Conversation id is `cc-<sessionId>` so it never collides with Claude.ai conversations.
+
+### Tags and timestamps
+
+Issues are tagged (via the redmine_tags plugin) so sources can be filtered later:
+
+- Coding sessions → `coding-session`, `claude-code`
+- Web conversations → `claude`, `web`
+- Projects → `claude`, `project`
+
+Tags are applied on create/supersede (replace) and on existing issues (additive,
+preserving manual tags), tracked in `conversations.tags_applied` so re-runs are cheap.
+The plugin doesn't expose tags in the issue JSON, so current tags are read from the
+latest `tag_list` journal detail.
+
+Timestamps: Redmine's REST API can't backdate `created_on` on issues/comments, so the
+original time is preserved two ways — the issue `start_date` is set to the conversation's
+start date (requires the **Start date** core field to be enabled on the tracker, else it's
+silently ignored), and every note leads with its original timestamp.
+
+`bin/backfill_tags.rb` applies tags + `start_date` (+ strips the legacy `[Claude Code] `
+title prefix) to already-imported issues, driven by the local DB. Idempotent; re-run after
+enabling the Start date field to populate dates.
 
 Both entry points share the same `Syncer`, database and Redmine project. Because
 Claude Code uses random (non-time-ordered) message UUIDs, incremental detection is
@@ -173,6 +194,7 @@ upgraded to full content. Once at the current version, runs are incremental.
 
 - `bin/sync.rb` - Entry point for Claude.ai export ZIPs
 - `bin/sync_code.rb` - Entry point for Claude Code sessions (~/.claude/projects)
+- `bin/backfill_tags.rb` - One-off: tag + date + de-prefix already-imported issues
 - `lib/` - Core Ruby classes and business logic
 - `db/` - SQLite database files
 - `logs/` - Application log files (separate logs per component)

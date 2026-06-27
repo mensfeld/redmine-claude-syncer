@@ -51,12 +51,16 @@ RSpec.describe ClaudeCodeProcessor do
   let(:sessions) { described_class.new(projects_dir).process }
   let(:session) { sessions.first }
 
-  it 'reads one session with a prefixed title and metadata' do
+  it 'reads one session with a clean title and metadata' do
     expect(sessions.length).to eq(1)
     expect(session[:id]).to eq('cc-sess-1')
-    expect(session[:title]).to eq('[Claude Code] My Session')
+    expect(session[:title]).to eq('My Session')
     expect(session[:cwd]).to eq('/workspace')
     expect(session[:git_branch]).to eq('main')
+  end
+
+  it 'tags the session as coding-session + claude-code' do
+    expect(session[:tags]).to eq(%w[coding-session claude-code])
   end
 
   it 'maps roles and skips meta records' do

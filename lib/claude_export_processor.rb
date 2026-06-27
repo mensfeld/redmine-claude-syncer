@@ -141,7 +141,8 @@ class ClaudeExportProcessor
       title: data['name'],
       messages: messages,
       created_at: parse_timestamp(data['created_at']),
-      updated_at: parse_timestamp(data['updated_at'])
+      updated_at: parse_timestamp(data['updated_at']),
+      tags: %w[claude web]
     }
   end
 

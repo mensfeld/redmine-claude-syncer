@@ -11,8 +11,8 @@ require 'digest'
 # {Syncer} already understands, so coding sessions are archived in Redmine the
 # same way as Claude.ai conversations.
 class ClaudeCodeProcessor < ClaudeExportProcessor
-  # Prefix added to every session issue subject so they can be filtered/tagged
-  SESSION_TITLE_PREFIX = '[Claude Code]'
+  # Tags applied to every coding-session issue (source is differentiated by tags)
+  SESSION_TAGS = %w[coding-session claude-code].freeze
 
   # Record types that carry conversational messages
   MESSAGE_TYPES = %w[user assistant].freeze
@@ -69,12 +69,13 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     timestamps = records.filter_map { |r| r['timestamp'] }.sort
     {
       id: "cc-#{session_id}",
-      title: "#{SESSION_TITLE_PREFIX} #{session_title(records, session_id)}",
+      title: session_title(records, session_id),
       messages: messages,
       created_at: parse_timestamp(timestamps.first),
       updated_at: parse_timestamp(timestamps.last),
       cwd: records.filter_map { |r| r['cwd'] }.first,
-      git_branch: records.filter_map { |r| r['gitBranch'] }.first
+      git_branch: records.filter_map { |r| r['gitBranch'] }.first,
+      tags: SESSION_TAGS.dup
     }
   end
 

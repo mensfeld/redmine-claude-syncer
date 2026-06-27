@@ -135,6 +135,7 @@ class Syncer
       conversation[:messages].last[:id],
       CONTENT_VERSION
     )
+    apply_tags(issue_id, conversation, fresh: true)
   end
 
   # Replaces a partially-imported conversation with a fresh, complete issue
@@ -166,6 +167,7 @@ class Syncer
       conversation[:messages].last[:id],
       CONTENT_VERSION
     )
+    apply_tags(new_issue_id, conversation, fresh: true)
   end
 
   # Updates an existing Redmine issue with new messages and backfills attachments
@@ -185,6 +187,30 @@ class Syncer
 
     # Always reconcile attachments so anything missing gets backfilled
     sync_attachments(issue_id, conversation)
+
+    # Ensure tags on existing issues too (backfills issues imported before tagging)
+    apply_tags(issue_id, conversation, fresh: false)
+  end
+
+  # Applies the conversation's tags to its issue, tracked to stay cheap
+  #
+  # Fresh issues get their tags set directly; existing issues get an additive
+  # merge (preserving manual tags). Already-applied tags are skipped via the
+  # database so re-runs don't re-read journals or re-write tags.
+  #
+  # @param issue_id [Integer] the Redmine issue ID
+  # @param conversation [Hash] conversation data with :id and :tags keys
+  # @param fresh [Boolean] whether the issue was just created
+  # @return [void]
+  def apply_tags(issue_id, conversation, fresh:)
+    desired = conversation[:tags] || []
+    return if desired.empty?
+
+    applied = @db.get_applied_tags(conversation[:id])
+    return if (desired - applied).empty?
+
+    result = fresh ? @redmine.set_tags(issue_id, desired) : @redmine.add_tags(issue_id, desired)
+    @db.set_applied_tags(conversation[:id], (applied | result))
   end
 
   # Returns the messages that come after the last-processed message, by position
@@ -220,7 +246,8 @@ class Syncer
     title = conversation[:title].to_s.strip
     title = "Claude Conversation #{conversation[:id]}" if title.empty?
 
-    issue = @redmine.create_issue(title, conversation_description(title, conversation))
+    start_date = conversation[:created_at]&.strftime('%Y-%m-%d')
+    issue = @redmine.create_issue(title, conversation_description(title, conversation), start_date)
     @redmine.process_messages(issue['id'], conversation[:messages])
     sync_attachments(issue['id'], conversation)
 
@@ -256,6 +283,9 @@ class Syncer
     existing = @db.get_project(project[:id])
 
     issue_id = existing ? existing[:redmine_issue_id] : create_project_issue(project)
+
+    # Tag projects (additive + idempotent — no-op once present)
+    @redmine.add_tags(issue_id, %w[claude project])
 
     pending = project[:docs].reject { |doc| @db.attachment_synced?(doc[:key]) }
     return if pending.empty?

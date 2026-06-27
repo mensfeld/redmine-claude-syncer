@@ -34,8 +34,9 @@ class RedmineClient
   #
   # @param subject [String] issue subject/title
   # @param description [String] issue description
+  # @param start_date [String, nil] optional start date (YYYY-MM-DD) for the issue
   # @return [Hash] created issue data from Redmine API
-  def create_issue(subject, description)
+  def create_issue(subject, description, start_date = nil)
     begin
       issue_data = {
         project_id: @project_id,
@@ -45,6 +46,7 @@ class RedmineClient
         status_id: @status_id,
         priority_id: @priority_id
       }
+      issue_data[:start_date] = start_date if start_date
 
       # Only add assigned_to_id if it's a valid user
       if @human_user_id && @human_user_id.to_i > 0
@@ -134,6 +136,56 @@ class RedmineClient
   rescue StandardError => e
     @logger.error "Failed to close issue ##{issue_id}: #{e.message}"
     raise
+  end
+
+  # Sets an issue's tags, replacing any existing ones (redmine_tags plugin)
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param tags [Array<String>] the tags to set
+  # @return [Array<String>] the tags that were set
+  def set_tags(issue_id, tags)
+    return [] if tags.empty?
+
+    make_request('PUT', "/issues/#{issue_id}.json", { issue: { tag_list: tags } }, @human_api_key)
+    @logger.info "Set tags on issue ##{issue_id}: #{tags.join(', ')}"
+    tags
+  end
+
+  # Adds tags to an issue, preserving existing ones (read-merge-write)
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @param tags [Array<String>] the tags to add
+  # @return [Array<String>] the resulting full set of tags on the issue
+  def add_tags(issue_id, tags)
+    return [] if tags.empty?
+
+    current = read_tags(issue_id)
+    merged = (current + tags).uniq
+    return current if merged.sort == current.sort
+
+    set_tags(issue_id, merged)
+    merged
+  end
+
+  # Reads an issue's current tags from its journals
+  #
+  # The redmine_tags plugin does not expose tags in the issue JSON, so the
+  # current tags are taken from the most recent tag_list change detail.
+  #
+  # @param issue_id [Integer] Redmine issue ID
+  # @return [Array<String>] the issue's current tags
+  def read_tags(issue_id)
+    response = make_request('GET', "/issues/#{issue_id}.json?include=journals", nil, @human_api_key)
+    issue = JSON.parse(response.body)['issue']
+
+    latest = nil
+    (issue['journals'] || []).each do |journal|
+      (journal['details'] || []).each do |detail|
+        latest = detail['new_value'] if detail['name'] == 'tag_list'
+      end
+    end
+
+    latest.to_s.split(',').map(&:strip).reject(&:empty?)
   end
 
   # Adds a note to an existing issue using the appropriate user's API key
@@ -298,14 +350,16 @@ class RedmineClient
   # @param msg [Hash] message hash with :content, :code_items, :created_at keys
   # @return [String] formatted message content
   def format_message_with_code(msg)
-    content = msg[:content] || ""
-    
+    # Lead with the original timestamp so the real time is obvious (Redmine's own
+    # journal created_on cannot be backdated via the API).
+    content = "*🕐 #{msg[:created_at].strftime("%Y-%m-%d %H:%M:%S")}*\n\n"
+    content += msg[:content] || ""
+
     # Add code snippets inline if they exist
     if msg[:code_items] && !msg[:code_items].empty?
       content += "\n\n" + format_code_snippets(msg[:code_items])
     end
-    
-    content += "\n\n*Posted at: #{msg[:created_at].strftime("%Y-%m-%d %H:%M:%S")}*"
+
     content
   end
 

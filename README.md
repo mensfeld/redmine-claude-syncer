@@ -9,6 +9,8 @@ A Ruby application that synchronizes Claude AI conversations to Redmine issues.
 - Uploads all attachments and artifacts: user documents, Claude artifacts, created files
   (final version after edits), inline code blocks, and oversized blocks as files
 - Imports Claude Projects (description, custom instructions and knowledge docs)
+- Tags issues by source (`coding-session`/`claude-code`, `claude`/`web`, `claude`/`project`) for easy filtering
+- Sets issue `start_date` and leads each note with its original timestamp (Redmine can't backdate `created_on`)
 - Supersedes partial older imports: creates a complete new issue and closes (never deletes) the old one
 - Idempotent: tracks conversations by content version and attachments by key, so re-runs don't duplicate
 - Tracks conversation, attachment and project state in SQLite
