@@ -68,7 +68,7 @@ end
 
 puts "issues to process: #{work.size} (mode: #{MODE || 'all'})"
 
-done = failed = renamed = dated = projected = 0
+done = failed = renamed = dated = estimated = projected = 0
 work.each do |iid, cid, base_tags, coding|
   begin
     g = request(http, Net::HTTP::Get, "/issues/#{iid}.json")
@@ -91,6 +91,9 @@ work.each do |iid, cid, base_tags, coding|
     payload = { tag_list: tags }
     if (m = desc.match(/Started:\s*(\d{4}-\d{2}-\d{2})/))
       payload[:start_date] = m[1]; dated += 1
+    elsif issue['created_on'].to_s.length >= 10
+      # No recoverable original date -> use the issue's creation date as the closest estimate
+      payload[:start_date] = issue['created_on'][0, 10]; estimated += 1
     end
     subj = issue['subject'].to_s
     if coding
@@ -113,7 +116,7 @@ work.each do |iid, cid, base_tags, coding|
     warn "issue #{iid}: #{e.message}"
     failed += 1
   end
-  puts "progress: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated, #{projected} project-tagged" if !CANARY && (done + failed) % 250 == 0
+  puts "progress: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated, #{estimated} estimated, #{projected} project-tagged" if !CANARY && (done + failed) % 250 == 0
 end
 
-puts "FINAL: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated, #{projected} project-tagged of #{work.size}"
+puts "FINAL: #{done} done, #{failed} failed, #{renamed} renamed, #{dated} dated, #{estimated} estimated, #{projected} project-tagged of #{work.size}"
