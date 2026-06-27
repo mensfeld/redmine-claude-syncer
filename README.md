@@ -1,16 +1,26 @@
 # Redmine Claude Syncer
 
-A Ruby application that synchronizes Claude AI conversations to Redmine issues.
+A Ruby application that archives your Claude history in Redmine as a complete, browsable
+backup. It imports two things into the same Redmine project:
+
+- **Claude.ai conversations** — from your account export ZIP (chats and Projects)
+- **Claude Code sessions** — your local agentic coding sessions (the `~/.claude/projects` transcripts)
+
+Each conversation/session becomes a Redmine issue with every message as a note, so even
+after Claude Code compacts its context the full history lives safely in Redmine. Built to
+be run repeatedly (e.g. weekly): it's incremental and only adds what's new.
 
 ## Features
 
-- Imports conversations from Claude export ZIP files as a complete backup
+- Imports both Claude.ai conversations and Claude Code coding sessions as a complete backup
 - Renders the full message content as notes: text, thinking, tool calls and tool results
 - Uploads all attachments and artifacts: user documents, Claude artifacts, created files
   (final version after edits), inline code blocks, and oversized blocks as files
-- Imports Claude Projects (description, custom instructions and knowledge docs)
-- Tags issues by source (`coding-session`/`claude-code`, `claude`/`web`, `claude`/`project`) for easy filtering
+- Imports Claude Projects (description, custom instructions and knowledge docs); coding
+  sessions also attach the raw `.jsonl` transcript for full fidelity
+- Tags issues by source for easy filtering: `claude`/`web`, `coding-session`/`claude-code`/`<project>`, `claude`/`project`
 - Sets issue `start_date` and leads each note with its original timestamp (Redmine can't backdate `created_on`)
+- Creates issues oldest-first so issue IDs follow the conversation timeline
 - Supersedes partial older imports: creates a complete new issue and closes (never deletes) the old one
 - Idempotent: tracks conversations by content version and attachments by key, so re-runs don't duplicate
 - Tracks conversation, attachment and project state in SQLite
@@ -19,7 +29,11 @@ A Ruby application that synchronizes Claude AI conversations to Redmine issues.
 ## Requirements
 
 - Ruby 4.0 or later
-- Redmine instance with API access
+- Redmine instance with API access, plus:
+  - the [redmine_tags](https://github.com/ixti/redmine_tags) plugin (for source tags)
+  - the **Start date** standard field enabled on the tracker you import into (Administration →
+    Trackers → your tracker → Standard fields) so `start_date` can be set
+- Two Redmine users (a human and a "Claude" user), each with an API key, for correct note authorship
 - SQLite3
 
 ## Setup
@@ -46,6 +60,13 @@ REDMINE_CLAUDE_USER_ID=your-claude-user-id
 REDMINE_TRACKER_ID=1
 REDMINE_STATUS_ID=1
 REDMINE_PRIORITY_ID=2
+
+# Optional
+REDMINE_CLOSED_STATUS_ID=5            # status used when closing a superseded issue
+CLAUDE_PROJECTS_DIR=~/.claude/projects # where bin/sync_code.rb looks for sessions
+DATABASE_PATH=db/conversations.db      # tracking DB (reuse the same one across runs)
+LOG_FILE=logs/sync.log
+LOG_LEVEL=info
 ```
 
 4. Make the sync scripts executable:
