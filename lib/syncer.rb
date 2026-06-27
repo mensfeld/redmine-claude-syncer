@@ -10,7 +10,8 @@ require 'securerandom'
 class Syncer
   # Content schema version of the importer. Conversations imported with an older
   # version are superseded by a fresh, complete issue on the next run.
-  CONTENT_VERSION = 2
+  # v3: tool results and outputs are rendered inside code fences.
+  CONTENT_VERSION = 3
 
   # Creates a new syncer with the given configuration
   #
