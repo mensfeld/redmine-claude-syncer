@@ -17,41 +17,41 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # Record types that carry conversational messages
   MESSAGE_TYPES = %w[user assistant].freeze
 
-  # Creates a new processor for one or more Claude Code session directories
-  #
-  # @param projects_dirs [String, Array<String>] one path or a list of paths to
-  #   directories holding session transcripts (scanned recursively for *.jsonl)
-  def initialize(projects_dirs)
-    @projects_dirs = Array(projects_dirs)
-    @logger = Logger.new('logs/claude_code.log')
-  end
-
   # Filenames that are JSONL but not session transcripts (skip them)
   NON_TRANSCRIPT_FILES = %w[history.jsonl].freeze
 
+  # Creates a new processor for one or more Claude Code session directories
+  #
+  # Each directory can carry extra tags applied to every session found under it
+  # (e.g. tag everything from a COI session store with `coi`). Accepts:
+  #   - a String path
+  #   - an Array of String paths
+  #   - a Hash of `path => [extra_tags]`
+  #   - an Array of `[path, [extra_tags]]` pairs
+  #
+  # @param dir_configs [String, Array, Hash] session directory configuration
+  def initialize(dir_configs)
+    @dir_configs = normalize_dir_configs(dir_configs)
+    @logger = Logger.new('logs/claude_code.log')
+  end
+
   # Processes all session transcripts across every configured directory
   #
-  # Transcripts are deduplicated by session id (keeping the most complete copy),
-  # so the same session appearing in more than one location isn't imported twice.
-  # Non-transcript JSONL files (e.g. history.jsonl, which a sandbox may move back
-  # alongside the transcripts) are ignored.
+  # Per-directory extra tags are appended to each session's tags. Transcripts are
+  # deduplicated by session id (keeping the most complete copy and unioning tags),
+  # so the same session in more than one location isn't imported twice. Non-transcript
+  # JSONL files (e.g. history.jsonl) are ignored.
   #
   # @return [Array<Hash>] array of conversation hashes with :id, :title, :messages keys
   def process
-    @logger.info "Processing Claude Code sessions from #{@projects_dirs.join(', ')}"
+    @logger.info "Processing Claude Code sessions from #{@dir_configs.map(&:first).join(', ')}"
 
-    paths = @projects_dirs.flat_map { |dir| Dir.glob(File.join(dir, '**', '*.jsonl')) }
-                          .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) }
-                          .uniq.sort
-    sessions = paths.filter_map do |path|
-      process_session_file(path)
-    rescue StandardError => e
-      @logger.error "Failed to process session #{path}: #{e.message}"
-      nil
+    sessions = @dir_configs.flat_map { |dir, extra_tags| process_dir(dir, extra_tags) }
+
+    deduped = sessions.group_by { |session| session[:id] }.map do |_id, group|
+      best = group.max_by { |session| session[:messages].size }
+      best.merge(tags: group.flat_map { |session| session[:tags] }.uniq)
     end
-
-    deduped = sessions.group_by { |session| session[:id] }
-                      .map { |_id, group| group.max_by { |session| session[:messages].size } }
 
     @logger.info "Successfully processed #{deduped.size} sessions"
     deduped
@@ -65,6 +65,45 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   end
 
   private
+
+  # Normalizes the directory configuration into [path, extra_tags] pairs
+  #
+  # @param dir_configs [String, Array, Hash] the raw configuration
+  # @return [Array<Array(String, Array<String>)>] normalized pairs
+  def normalize_dir_configs(dir_configs)
+    case dir_configs
+    when Hash
+      dir_configs.map { |dir, tags| [dir, Array(tags)] }
+    when String
+      [[dir_configs, []]]
+    when Array
+      dir_configs.map { |entry| entry.is_a?(Array) ? [entry[0], Array(entry[1])] : [entry, []] }
+    else
+      []
+    end
+  end
+
+  # Processes every transcript in a single directory, applying its extra tags
+  #
+  # @param dir [String] the directory to scan
+  # @param extra_tags [Array<String>] tags to append to each session found
+  # @return [Array<Hash>] processed session hashes
+  def process_dir(dir, extra_tags)
+    paths = Dir.glob(File.join(dir, '**', '*.jsonl'))
+               .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) }
+               .uniq.sort
+
+    paths.filter_map do |path|
+      session = process_session_file(path)
+      next nil unless session
+
+      session[:tags] = (session[:tags] + extra_tags).uniq unless extra_tags.empty?
+      session
+    rescue StandardError => e
+      @logger.error "Failed to process session #{path}: #{e.message}"
+      nil
+    end
+  end
 
   # Processes a single session transcript file into a conversation hash
   #

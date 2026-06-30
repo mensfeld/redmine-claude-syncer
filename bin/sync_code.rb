@@ -8,10 +8,13 @@ require_relative '../lib/claude_code_processor'
 Dotenv.load
 
 # Resolve the session directories. Precedence:
-#   1. command-line args (one or more paths)
-#   2. CLAUDE_PROJECTS_DIR (one path, or several colon-separated)
+#   1. command-line args (one or more specs)
+#   2. CLAUDE_PROJECTS_DIR (one spec, or several colon-separated)
 #   3. default ~/.claude/projects
-session_dirs =
+# Each spec is a path, optionally with extra tags: "dir" or "dir=tag1,tag2".
+# Those tags are applied to every session found under that directory, e.g.
+#   bin/sync_code.rb ~/.claude/projects "~/.coi/sessions-claude=coi"
+raw_specs =
   if ARGV.any?
     ARGV
   elsif ENV['CLAUDE_PROJECTS_DIR'] && !ENV['CLAUDE_PROJECTS_DIR'].empty?
@@ -20,12 +23,19 @@ session_dirs =
     ['~/.claude/projects']
   end
 
-session_dirs = session_dirs.map { |dir| File.expand_path(dir.strip) }.uniq
-missing = session_dirs.reject { |dir| Dir.exist?(dir) }
-missing.each { |dir| puts "Warning: skipping missing session directory '#{dir}'" }
+dir_configs = raw_specs.filter_map do |spec|
+  path, tags = spec.strip.split('=', 2)
+  dir = File.expand_path(path)
+  extra_tags = (tags || '').split(',').map(&:strip).reject(&:empty?)
 
-session_dirs -= missing
-if session_dirs.empty?
+  unless Dir.exist?(dir)
+    puts "Warning: skipping missing session directory '#{dir}'"
+    next nil
+  end
+  [dir, extra_tags]
+end
+
+if dir_configs.empty?
   puts 'Error: no existing Claude Code session directories to scan'
   exit 1
 end
@@ -49,4 +59,4 @@ config = {
 
 # Create and run the syncer over Claude Code sessions
 syncer = Syncer.new(config)
-syncer.import(ClaudeCodeProcessor.new(session_dirs))
+syncer.import(ClaudeCodeProcessor.new(dir_configs))

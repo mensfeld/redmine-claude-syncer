@@ -34,7 +34,7 @@ Create a `.env` file with these required variables:
 
 Optional configuration:
 - `REDMINE_CLOSED_STATUS_ID` - Status ID used when closing superseded issues (default: 5)
-- `CLAUDE_PROJECTS_DIR` - Claude Code transcript dir(s) for `bin/sync_code.rb`; one path or several colon-separated (default: ~/.claude/projects). `bin/sync_code.rb` also accepts dirs as CLI args. All are scanned recursively and deduplicated by session id.
+- `CLAUDE_PROJECTS_DIR` - Claude Code transcript dir(s) for `bin/sync_code.rb`; one path or several colon-separated (default: ~/.claude/projects). Also accepted as CLI args. Each entry may carry extra tags as `dir=tag1,tag2` (applied to sessions from that dir, e.g. `~/.coi/sessions-claude=coi`). All dirs are scanned recursively and deduplicated by session id.
 - `DATABASE_PATH` - SQLite database path (default: db/conversations.db)
 - `LOG_FILE` - Log file path (default: logs/sync.log)
 - `LOG_LEVEL` - Logging level (DEBUG, INFO, WARN, ERROR)
@@ -121,7 +121,8 @@ the `projects` table for idempotency.
 Claude.ai conversations. `ClaudeCodeProcessor` (`lib/claude_code_processor.rb`)
 reads the JSONL transcripts from one or more directories (default `~/.claude/projects`;
 pass more as CLI args or via colon-separated `CLAUDE_PROJECTS_DIR`, e.g. to also pick up a
-sandbox/container session store like `~/.coi/sessions-claude`). Each dir is scanned
+sandbox/container session store like `~/.coi/sessions-claude`). A dir may carry extra tags
+via `dir=tag1,tag2` (e.g. tag everything from the COI store with `coi`). Each dir is scanned
 recursively and sessions are deduplicated by id. Being a subclass of
 `ClaudeExportProcessor`, it reuses the exact same renderer (text, thinking, tool calls,
 tool results, code blocks as files). Per session:

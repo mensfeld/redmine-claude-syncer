@@ -151,5 +151,22 @@ RSpec.describe ClaudeCodeProcessor do
       ids = described_class.new(dir_a).process.map { |s| s[:id] }
       expect(ids).to eq(['cc-real'])
     end
+
+    it 'applies per-directory extra tags' do
+      write_session(dir_a, 'plain', 1)
+      write_session(dir_b, 'coi-sess', 1)
+      sessions = described_class.new([dir_a, [dir_b, ['coi']]]).process
+      plain = sessions.find { |s| s[:id] == 'cc-plain' }
+      coi = sessions.find { |s| s[:id] == 'cc-coi-sess' }
+      expect(plain[:tags]).not_to include('coi')
+      expect(coi[:tags]).to include('coi')
+      expect(coi[:tags]).to include('coding-session', 'claude-code')
+    end
+
+    it 'accepts a hash of dir => extra tags' do
+      write_session(dir_b, 'h', 1)
+      session = described_class.new(dir_b => ['coi']).process.first
+      expect(session[:tags]).to include('coi')
+    end
   end
 end
