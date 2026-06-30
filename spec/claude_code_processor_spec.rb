@@ -142,5 +142,14 @@ RSpec.describe ClaudeCodeProcessor do
       expect(sessions.length).to eq(1)
       expect(sessions.first[:messages].length).to eq(3)
     end
+
+    it 'ignores non-transcript JSONL like history.jsonl' do
+      write_session(dir_a, 'real', 1)
+      require 'fileutils'
+      FileUtils.mkdir_p(File.join(dir_a, '.claude'))
+      File.write(File.join(dir_a, '.claude', 'history.jsonl'), { 'display' => 'a prompt' }.to_json)
+      ids = described_class.new(dir_a).process.map { |s| s[:id] }
+      expect(ids).to eq(['cc-real'])
+    end
   end
 end

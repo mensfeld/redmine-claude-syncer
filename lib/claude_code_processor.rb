@@ -26,16 +26,23 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     @logger = Logger.new('logs/claude_code.log')
   end
 
+  # Filenames that are JSONL but not session transcripts (skip them)
+  NON_TRANSCRIPT_FILES = %w[history.jsonl].freeze
+
   # Processes all session transcripts across every configured directory
   #
   # Transcripts are deduplicated by session id (keeping the most complete copy),
   # so the same session appearing in more than one location isn't imported twice.
+  # Non-transcript JSONL files (e.g. history.jsonl, which a sandbox may move back
+  # alongside the transcripts) are ignored.
   #
   # @return [Array<Hash>] array of conversation hashes with :id, :title, :messages keys
   def process
     @logger.info "Processing Claude Code sessions from #{@projects_dirs.join(', ')}"
 
-    paths = @projects_dirs.flat_map { |dir| Dir.glob(File.join(dir, '**', '*.jsonl')) }.uniq.sort
+    paths = @projects_dirs.flat_map { |dir| Dir.glob(File.join(dir, '**', '*.jsonl')) }
+                          .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) }
+                          .uniq.sort
     sessions = paths.filter_map do |path|
       process_session_file(path)
     rescue StandardError => e
