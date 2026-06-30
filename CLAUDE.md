@@ -55,9 +55,9 @@ Optional configuration:
 - Converts Claude message format to internal representation
 
 **ClaudeCodeProcessor** (`lib/claude_code_processor.rb`) - Claude Code session reader:
-- Subclass of ClaudeExportProcessor that reads `~/.claude/projects/*/*.jsonl` transcripts
+- Subclass of ClaudeExportProcessor that reads `*.jsonl` transcripts from one or more dirs
 - Reuses the same renderer so coding sessions are archived like conversations
-- Attaches the raw transcript and prefixes issue subjects with `[Claude Code]`
+- Attaches the raw transcript; sessions are tagged (not subject-prefixed) by source
 
 **RedmineClient** (`lib/redmine_client.rb`) - Redmine API interface:
 - Creates and updates Redmine issues
