@@ -17,29 +17,37 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # Record types that carry conversational messages
   MESSAGE_TYPES = %w[user assistant].freeze
 
-  # Creates a new processor for a Claude Code projects directory
+  # Creates a new processor for one or more Claude Code session directories
   #
-  # @param projects_dir [String] path to the ~/.claude/projects directory
-  def initialize(projects_dir)
-    @projects_dir = projects_dir
+  # @param projects_dirs [String, Array<String>] one path or a list of paths to
+  #   directories holding session transcripts (scanned recursively for *.jsonl)
+  def initialize(projects_dirs)
+    @projects_dirs = Array(projects_dirs)
     @logger = Logger.new('logs/claude_code.log')
   end
 
-  # Processes all session transcripts into conversation hashes
+  # Processes all session transcripts across every configured directory
+  #
+  # Transcripts are deduplicated by session id (keeping the most complete copy),
+  # so the same session appearing in more than one location isn't imported twice.
   #
   # @return [Array<Hash>] array of conversation hashes with :id, :title, :messages keys
   def process
-    @logger.info "Processing Claude Code sessions from #{@projects_dir}"
+    @logger.info "Processing Claude Code sessions from #{@projects_dirs.join(', ')}"
 
-    sessions = Dir.glob(File.join(@projects_dir, '**', '*.jsonl')).sort.filter_map do |path|
+    paths = @projects_dirs.flat_map { |dir| Dir.glob(File.join(dir, '**', '*.jsonl')) }.uniq.sort
+    sessions = paths.filter_map do |path|
       process_session_file(path)
     rescue StandardError => e
       @logger.error "Failed to process session #{path}: #{e.message}"
       nil
     end
 
-    @logger.info "Successfully processed #{sessions.size} sessions"
-    sessions
+    deduped = sessions.group_by { |session| session[:id] }
+                      .map { |_id, group| group.max_by { |session| session[:messages].size } }
+
+    @logger.info "Successfully processed #{deduped.size} sessions"
+    deduped
   end
 
   # Claude Code transcripts have no separate projects to import

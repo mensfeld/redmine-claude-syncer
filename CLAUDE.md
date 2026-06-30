@@ -34,7 +34,7 @@ Create a `.env` file with these required variables:
 
 Optional configuration:
 - `REDMINE_CLOSED_STATUS_ID` - Status ID used when closing superseded issues (default: 5)
-- `CLAUDE_PROJECTS_DIR` - Claude Code transcripts dir for `bin/sync_code.rb` (default: ~/.claude/projects)
+- `CLAUDE_PROJECTS_DIR` - Claude Code transcript dir(s) for `bin/sync_code.rb`; one path or several colon-separated (default: ~/.claude/projects). `bin/sync_code.rb` also accepts dirs as CLI args. All are scanned recursively and deduplicated by session id.
 - `DATABASE_PATH` - SQLite database path (default: db/conversations.db)
 - `LOG_FILE` - Log file path (default: logs/sync.log)
 - `LOG_LEVEL` - Logging level (DEBUG, INFO, WARN, ERROR)
@@ -119,9 +119,12 @@ the `projects` table for idempotency.
 
 `bin/sync_code.rb` archives local Claude Code coding sessions the same way as
 Claude.ai conversations. `ClaudeCodeProcessor` (`lib/claude_code_processor.rb`)
-reads the JSONL transcripts under `~/.claude/projects/*/*.jsonl`, and — being a
-subclass of `ClaudeExportProcessor` — reuses the exact same renderer (text,
-thinking, tool calls, tool results, code blocks as files). Per session:
+reads the JSONL transcripts from one or more directories (default `~/.claude/projects`;
+pass more as CLI args or via colon-separated `CLAUDE_PROJECTS_DIR`, e.g. to also pick up a
+sandbox/container session store like `~/.coi/sessions-claude`). Each dir is scanned
+recursively and sessions are deduplicated by id. Being a subclass of
+`ClaudeExportProcessor`, it reuses the exact same renderer (text, thinking, tool calls,
+tool results, code blocks as files). Per session:
 
 - The title comes from the transcript's `aiTitle` (falling back to the first prompt).
 - `cwd` and git branch are recorded in the description.
