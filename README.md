@@ -88,7 +88,13 @@ as you like (e.g. weekly); they only add what's new and never duplicate.
 ```bash
 ./bin/sync_code.rb
 ```
-(Override the location with `CLAUDE_PROJECTS_DIR` if it isn't `~/.claude/projects`.)
+Scan one or more locations (useful if a sandbox/container stashes sessions elsewhere) by
+passing paths as arguments, or via `CLAUDE_PROJECTS_DIR` (colon-separated). Each directory
+is scanned recursively for `*.jsonl`, and sessions seen in more than one place are deduplicated:
+```bash
+./bin/sync_code.rb ~/.claude/projects ~/.coi/sessions-claude
+# or: CLAUDE_PROJECTS_DIR="$HOME/.claude/projects:$HOME/.coi/sessions-claude" ./bin/sync_code.rb
+```
 
 Both write to the same Redmine project and the same SQLite database (keep using the
 same `db/conversations.db` so re-runs know what's already imported). On each run:

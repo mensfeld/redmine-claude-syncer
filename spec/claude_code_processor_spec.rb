@@ -107,4 +107,40 @@ RSpec.describe ClaudeCodeProcessor do
       expect(described_class.new(projects_dir).process_projects).to eq([])
     end
   end
+
+  describe 'multiple session directories' do
+    let(:dir_a) { 'tmp/cc_a' }
+    let(:dir_b) { 'tmp/cc_b' }
+
+    def write_session(dir, sid, message_count)
+      require 'fileutils'
+      FileUtils.mkdir_p(dir)
+      recs = [{ 'type' => 'ai-title', 'aiTitle' => sid, 'sessionId' => sid }]
+      message_count.times do |i|
+        recs << {
+          'type' => 'assistant', 'uuid' => "#{sid}-#{i}", 'sessionId' => sid,
+          'timestamp' => '2026-01-01T00:00:0%dZ' % i,
+          'message' => { 'role' => 'assistant', 'content' => [{ 'type' => 'text', 'text' => "msg #{i}" }] }
+        }
+      end
+      File.write(File.join(dir, "#{sid}.jsonl"), recs.map(&:to_json).join("\n"))
+    end
+
+    after { require 'fileutils'; FileUtils.rm_rf(dir_a); FileUtils.rm_rf(dir_b) }
+
+    it 'imports sessions from every directory' do
+      write_session(dir_a, 'sess-a', 1)
+      write_session(dir_b, 'sess-b', 1)
+      ids = described_class.new([dir_a, dir_b]).process.map { |s| s[:id] }
+      expect(ids).to contain_exactly('cc-sess-a', 'cc-sess-b')
+    end
+
+    it 'deduplicates a session present in two dirs, keeping the most complete' do
+      write_session(dir_a, 'dup', 1)
+      write_session(dir_b, 'dup', 3)
+      sessions = described_class.new([dir_a, dir_b]).process
+      expect(sessions.length).to eq(1)
+      expect(sessions.first[:messages].length).to eq(3)
+    end
+  end
 end

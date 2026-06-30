@@ -7,11 +7,26 @@ require_relative '../lib/claude_code_processor'
 # Load environment variables
 Dotenv.load
 
-# Resolve the Claude Code projects directory (override with CLAUDE_PROJECTS_DIR)
-claude_projects_dir = ENV['CLAUDE_PROJECTS_DIR'] || File.expand_path('~/.claude/projects')
+# Resolve the session directories. Precedence:
+#   1. command-line args (one or more paths)
+#   2. CLAUDE_PROJECTS_DIR (one path, or several colon-separated)
+#   3. default ~/.claude/projects
+session_dirs =
+  if ARGV.any?
+    ARGV
+  elsif ENV['CLAUDE_PROJECTS_DIR'] && !ENV['CLAUDE_PROJECTS_DIR'].empty?
+    ENV['CLAUDE_PROJECTS_DIR'].split(':')
+  else
+    ['~/.claude/projects']
+  end
 
-unless Dir.exist?(claude_projects_dir)
-  puts "Error: Claude Code projects directory '#{claude_projects_dir}' does not exist"
+session_dirs = session_dirs.map { |dir| File.expand_path(dir.strip) }.uniq
+missing = session_dirs.reject { |dir| Dir.exist?(dir) }
+missing.each { |dir| puts "Warning: skipping missing session directory '#{dir}'" }
+
+session_dirs -= missing
+if session_dirs.empty?
+  puts 'Error: no existing Claude Code session directories to scan'
   exit 1
 end
 
@@ -34,4 +49,4 @@ config = {
 
 # Create and run the syncer over Claude Code sessions
 syncer = Syncer.new(config)
-syncer.import(ClaudeCodeProcessor.new(claude_projects_dir))
+syncer.import(ClaudeCodeProcessor.new(session_dirs))
