@@ -190,6 +190,7 @@ upgraded to full content. Once at the current version, runs are incremental.
 
 - `bin/sync.rb` - Entry point for Claude.ai export ZIPs
 - `bin/sync_code.rb` - Entry point for Claude Code sessions (~/.claude/projects)
+- `bin/backfill_tags.rb` - Maintenance: force re-tag + start_date on existing issues (repair/resync)
 - `lib/` - Core Ruby classes and business logic
 - `db/` - SQLite database files
 - `logs/` - Application log files (separate logs per component)

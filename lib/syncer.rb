@@ -218,11 +218,19 @@ class Syncer
     desired = conversation[:tags] || []
     return if desired.empty?
 
+    # A fresh issue (create/supersede) has no tags yet, so always set them —
+    # ignoring any stale tags_applied left over from a previous issue for this
+    # conversation (e.g. after a supersede). The tracked skip is only safe when
+    # updating an already-tagged existing issue.
+    if fresh
+      @db.set_applied_tags(conversation[:id], @redmine.set_tags(issue_id, desired))
+      return
+    end
+
     applied = @db.get_applied_tags(conversation[:id])
     return if (desired - applied).empty?
 
-    result = fresh ? @redmine.set_tags(issue_id, desired) : @redmine.add_tags(issue_id, desired)
-    @db.set_applied_tags(conversation[:id], (applied | result))
+    @db.set_applied_tags(conversation[:id], (applied | @redmine.add_tags(issue_id, desired)))
   end
 
   # Returns the messages that come after the last-processed message, by position
