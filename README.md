@@ -63,7 +63,6 @@ REDMINE_PRIORITY_ID=2
 
 # Optional
 REDMINE_CLOSED_STATUS_ID=5            # status used when closing a superseded issue
-CLAUDE_PROJECTS_DIR=~/.claude/projects # where bin/sync_code.rb looks for sessions
 DATABASE_PATH=db/conversations.db      # tracking DB (reuse the same one across runs)
 LOG_FILE=logs/sync.log
 LOG_LEVEL=info
@@ -84,19 +83,22 @@ as you like (e.g. weekly); they only add what's new and never duplicate.
 ./bin/sync.rb path/to/export.zip
 ```
 
-**Claude Code coding sessions** — from your local transcripts under `~/.claude/projects/`:
+**Claude Code coding sessions** — no arguments; it reads `config/sync_code.yml`:
 ```bash
 ./bin/sync_code.rb
 ```
-Scan one or more locations (useful if a sandbox/container stashes sessions elsewhere) by
-passing paths as arguments, or via `CLAUDE_PROJECTS_DIR` (colon-separated). Each directory
-is scanned recursively for `*.jsonl`, and sessions seen in more than one place are deduplicated.
-A directory can also carry **extra tags** with `dir=tag1,tag2` — applied to every session found
-there (handy to mark sessions from a container store):
-```bash
-./bin/sync_code.rb ~/.claude/projects "~/.coi/sessions-claude=coi"
-# or: CLAUDE_PROJECTS_DIR="$HOME/.claude/projects:$HOME/.coi/sessions-claude=coi" ./bin/sync_code.rb
+That config lists the directories to scan (recursively for `*.jsonl`), each mapped to extra
+tags applied to every session found there. It ships with sensible defaults — `~/.claude/projects`
+and `~/.coi/sessions-claude` (tagged `coi`) — so a sandbox/container session store is picked up
+out of the box. Edit the file to add/remove locations or tags:
+```yaml
+# config/sync_code.yml
+directories:
+  "~/.claude/projects": []
+  "~/.coi/sessions-claude": ["coi"]
 ```
+Missing directories are skipped with a warning; sessions found in more than one place are
+deduplicated by id (tags merged). Point at a different config with `SYNC_CODE_CONFIG=/path`.
 
 Both write to the same Redmine project and the same SQLite database (keep using the
 same `db/conversations.db` so re-runs know what's already imported). On each run:

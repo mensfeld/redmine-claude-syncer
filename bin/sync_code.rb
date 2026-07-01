@@ -1,38 +1,35 @@
 #!/usr/bin/env ruby
 
 require 'dotenv'
+require 'yaml'
 require_relative '../lib/syncer'
 require_relative '../lib/claude_code_processor'
 
 # Load environment variables
 Dotenv.load
 
-# Resolve the session directories. Precedence:
-#   1. command-line args (one or more specs)
-#   2. CLAUDE_PROJECTS_DIR (one spec, or several colon-separated)
-#   3. default ~/.claude/projects
-# Each spec is a path, optionally with extra tags: "dir" or "dir=tag1,tag2".
-# Those tags are applied to every session found under that directory, e.g.
-#   bin/sync_code.rb ~/.claude/projects "~/.coi/sessions-claude=coi"
-raw_specs =
-  if ARGV.any?
-    ARGV
-  elsif ENV['CLAUDE_PROJECTS_DIR'] && !ENV['CLAUDE_PROJECTS_DIR'].empty?
-    ENV['CLAUDE_PROJECTS_DIR'].split(':')
-  else
-    ['~/.claude/projects']
-  end
+# Built-in defaults, used when no config file is present. Each directory maps to a
+# list of extra tags applied to every session found under it.
+DEFAULT_SESSION_DIRS = {
+  '~/.claude/projects' => [],
+  '~/.coi/sessions-claude' => ['coi']
+}.freeze
 
-dir_configs = raw_specs.filter_map do |spec|
-  path, tags = spec.strip.split('=', 2)
-  dir = File.expand_path(path)
-  extra_tags = (tags || '').split(',').map(&:strip).reject(&:empty?)
+# Session directories come from config/sync_code.yml (override its path with
+# SYNC_CODE_CONFIG). Its `directories:` map is `path => [extra tags]`. If the file
+# is absent or empty, the built-in defaults above are used — so a plain
+# `bin/sync_code.rb` with no arguments Just Works.
+config_path = ENV['SYNC_CODE_CONFIG'] || File.expand_path('../config/sync_code.yml', __dir__)
+configured = (YAML.safe_load(File.read(config_path)) || {})['directories'] if File.exist?(config_path)
+dir_map = configured && !configured.empty? ? configured : DEFAULT_SESSION_DIRS
 
+dir_configs = dir_map.filter_map do |path, tags|
+  dir = File.expand_path(path.to_s)
   unless Dir.exist?(dir)
     puts "Warning: skipping missing session directory '#{dir}'"
     next nil
   end
-  [dir, extra_tags]
+  [dir, Array(tags)]
 end
 
 if dir_configs.empty?

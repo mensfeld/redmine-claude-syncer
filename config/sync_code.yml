@@ -1,0 +1,12 @@
+# Claude Code session directories to import (used by bin/sync_code.rb).
+#
+# Just run:  bundle exec bin/sync_code.rb
+# It reads this file — no arguments needed.
+#
+# Each entry is a directory (scanned recursively for *.jsonl) mapped to a list of
+# extra tags applied to every session found there. `~` is expanded; missing
+# directories are skipped with a warning. Sessions found in more than one place are
+# deduplicated by id (tags are merged).
+directories:
+  "~/.claude/projects": []
+  "~/.coi/sessions-claude": ["coi"]
