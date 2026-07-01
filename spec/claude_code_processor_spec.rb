@@ -152,6 +152,23 @@ RSpec.describe ClaudeCodeProcessor do
       expect(ids).to eq(['cc-real'])
     end
 
+    it 'finds transcripts nested under a hidden .claude dir (COI layout)' do
+      require 'fileutils'
+      nested = File.join(dir_a, 'container-id', '.claude', 'projects', '-workspace')
+      FileUtils.mkdir_p(nested)
+      recs = [
+        { 'type' => 'ai-title', 'aiTitle' => 'nested', 'sessionId' => 'nested-sess' },
+        {
+          'type' => 'assistant', 'uuid' => 'n1', 'sessionId' => 'nested-sess',
+          'timestamp' => '2026-01-01T00:00:00Z',
+          'message' => { 'role' => 'assistant', 'content' => [{ 'type' => 'text', 'text' => 'hi' }] }
+        }
+      ]
+      File.write(File.join(nested, 'nested-sess.jsonl'), recs.map(&:to_json).join("\n"))
+      ids = described_class.new(dir_a).process.map { |s| s[:id] }
+      expect(ids).to include('cc-nested-sess')
+    end
+
     it 'applies per-directory extra tags' do
       write_session(dir_a, 'plain', 1)
       write_session(dir_b, 'coi-sess', 1)
