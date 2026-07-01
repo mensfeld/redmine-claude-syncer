@@ -89,7 +89,9 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # @param extra_tags [Array<String>] tags to append to each session found
   # @return [Array<Hash>] processed session hashes
   def process_dir(dir, extra_tags)
-    paths = Dir.glob(File.join(dir, '**', '*.jsonl'))
+    # FNM_DOTMATCH so ** descends into hidden dirs — sandbox/container stores keep
+    # transcripts under a hidden ".claude" folder (e.g. <id>/.claude/projects/...).
+    paths = Dir.glob(File.join(dir, '**', '*.jsonl'), File::FNM_DOTMATCH)
                .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) }
                .uniq.sort
 
