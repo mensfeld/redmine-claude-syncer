@@ -1,31 +1,38 @@
 #!/usr/bin/env ruby
 
 require 'dotenv'
+require 'yaml'
 require_relative '../lib/syncer'
 require_relative '../lib/claude_code_processor'
 
 # Load environment variables
 Dotenv.load
 
-# Resolve the session directories. Precedence:
-#   1. command-line args (one or more paths)
-#   2. CLAUDE_PROJECTS_DIR (one path, or several colon-separated)
-#   3. default ~/.claude/projects
-session_dirs =
-  if ARGV.any?
-    ARGV
-  elsif ENV['CLAUDE_PROJECTS_DIR'] && !ENV['CLAUDE_PROJECTS_DIR'].empty?
-    ENV['CLAUDE_PROJECTS_DIR'].split(':')
-  else
-    ['~/.claude/projects']
+# Built-in defaults, used when no config file is present. Each directory maps to a
+# list of extra tags applied to every session found under it.
+DEFAULT_SESSION_DIRS = {
+  '~/.claude/projects' => [],
+  '~/.coi/sessions-claude' => ['coi']
+}.freeze
+
+# Session directories come from config/sync_code.yml (override its path with
+# SYNC_CODE_CONFIG). Its `directories:` map is `path => [extra tags]`. If the file
+# is absent or empty, the built-in defaults above are used — so a plain
+# `bin/sync_code.rb` with no arguments Just Works.
+config_path = ENV['SYNC_CODE_CONFIG'] || File.expand_path('../config/sync_code.yml', __dir__)
+configured = (YAML.safe_load(File.read(config_path)) || {})['directories'] if File.exist?(config_path)
+dir_map = configured && !configured.empty? ? configured : DEFAULT_SESSION_DIRS
+
+dir_configs = dir_map.filter_map do |path, tags|
+  dir = File.expand_path(path.to_s)
+  unless Dir.exist?(dir)
+    puts "Warning: skipping missing session directory '#{dir}'"
+    next nil
   end
+  [dir, Array(tags)]
+end
 
-session_dirs = session_dirs.map { |dir| File.expand_path(dir.strip) }.uniq
-missing = session_dirs.reject { |dir| Dir.exist?(dir) }
-missing.each { |dir| puts "Warning: skipping missing session directory '#{dir}'" }
-
-session_dirs -= missing
-if session_dirs.empty?
+if dir_configs.empty?
   puts 'Error: no existing Claude Code session directories to scan'
   exit 1
 end
@@ -49,4 +56,4 @@ config = {
 
 # Create and run the syncer over Claude Code sessions
 syncer = Syncer.new(config)
-syncer.import(ClaudeCodeProcessor.new(session_dirs))
+syncer.import(ClaudeCodeProcessor.new(dir_configs))

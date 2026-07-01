@@ -34,7 +34,7 @@ Create a `.env` file with these required variables:
 
 Optional configuration:
 - `REDMINE_CLOSED_STATUS_ID` - Status ID used when closing superseded issues (default: 5)
-- `CLAUDE_PROJECTS_DIR` - Claude Code transcript dir(s) for `bin/sync_code.rb`; one path or several colon-separated (default: ~/.claude/projects). `bin/sync_code.rb` also accepts dirs as CLI args. All are scanned recursively and deduplicated by session id.
+- `config/sync_code.yml` - Session directories for `bin/sync_code.rb` (a `path => [extra tags]` map). Defaults to `~/.claude/projects` and `~/.coi/sessions-claude` (tagged `coi`). Override its path with `SYNC_CODE_CONFIG`.
 - `DATABASE_PATH` - SQLite database path (default: db/conversations.db)
 - `LOG_FILE` - Log file path (default: logs/sync.log)
 - `LOG_LEVEL` - Logging level (DEBUG, INFO, WARN, ERROR)
@@ -120,9 +120,10 @@ the `projects` table for idempotency.
 `bin/sync_code.rb` archives local Claude Code coding sessions the same way as
 Claude.ai conversations. `ClaudeCodeProcessor` (`lib/claude_code_processor.rb`)
 reads the JSONL transcripts from one or more directories (default `~/.claude/projects`;
-pass more as CLI args or via colon-separated `CLAUDE_PROJECTS_DIR`, e.g. to also pick up a
-sandbox/container session store like `~/.coi/sessions-claude`). Each dir is scanned
-recursively and sessions are deduplicated by id. Being a subclass of
+configured in `config/sync_code.yml` as a `path => [extra tags]` map, defaulting to
+`~/.claude/projects` and `~/.coi/sessions-claude` (tagged `coi`) so a container session
+store is picked up with no arguments). Each dir is scanned recursively and sessions are
+deduplicated by id (tags merged). Being a subclass of
 `ClaudeExportProcessor`, it reuses the exact same renderer (text, thinking, tool calls,
 tool results, code blocks as files). Per session:
 
@@ -194,6 +195,7 @@ upgraded to full content. Once at the current version, runs are incremental.
 - `bin/sync.rb` - Entry point for Claude.ai export ZIPs
 - `bin/sync_code.rb` - Entry point for Claude Code sessions (~/.claude/projects)
 - `bin/backfill_tags.rb` - Maintenance: force re-tag + start_date on existing issues (repair/resync)
+- `config/sync_code.yml` - Session directories + per-dir tags for `bin/sync_code.rb`
 - `lib/` - Core Ruby classes and business logic
 - `db/` - SQLite database files
 - `logs/` - Application log files (separate logs per component)
