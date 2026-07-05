@@ -21,7 +21,7 @@ GEM
       diff-lcs (>= 1.2.0, < 2.0)
       rspec-support (~> 3.13.0)
     rspec-support (3.13.7)
-    rubyzip (3.4.0)
+    rubyzip (3.4.1)
     sqlite3 (2.9.4-aarch64-linux-gnu)
     sqlite3 (2.9.4-arm-linux-gnu)
     sqlite3 (2.9.4-arm64-darwin)
