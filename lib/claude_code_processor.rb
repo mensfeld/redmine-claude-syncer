@@ -5,11 +5,9 @@ require 'digest'
 
 # Processes Claude Code session transcripts (~/.claude/projects/*/*.jsonl)
 #
-# Reuses the rendering and attachment logic of {ClaudeExportProcessor} but reads
-# the JSONL transcript format produced by Claude Code instead of a Claude.ai
-# export ZIP. Each session becomes a conversation with the same shape the
-# {Syncer} already understands, so coding sessions are archived in Redmine the
-# same way as Claude.ai conversations.
+# Reuses the rendering and attachment logic of {ClaudeExportProcessor} but reads the JSONL transcript format produced by
+# Claude Code instead of a Claude.ai export ZIP. Each session becomes a conversation with the same shape the {Syncer}
+# already understands, so coding sessions are archived in Redmine the same way as Claude.ai conversations.
 class ClaudeCodeProcessor < ClaudeExportProcessor
   # Base tags applied to every coding-session issue (project tag is appended)
   SESSION_TAGS = %w[coding-session claude-code].freeze
@@ -37,10 +35,9 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
 
   # Processes all session transcripts across every configured directory
   #
-  # Per-directory extra tags are appended to each session's tags. Transcripts are
-  # deduplicated by session id (keeping the most complete copy and unioning tags),
-  # so the same session in more than one location isn't imported twice. Non-transcript
-  # JSONL files (e.g. history.jsonl) are ignored.
+  # Per-directory extra tags are appended to each session's tags. Transcripts are deduplicated by session id (keeping
+  # the most complete copy and unioning tags), so the same session in more than one location isn't imported twice.
+  # Non-transcript JSONL files (e.g. history.jsonl) are ignored.
   #
   # @return [Array<Hash>] array of conversation hashes with :id, :title, :messages keys
   def process

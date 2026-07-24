@@ -8,9 +8,8 @@ require 'securerandom'
 
 # Main orchestrator that synchronizes Claude conversations to Redmine issues
 class Syncer
-  # Content schema version of the importer. Conversations imported with an older
-  # version are superseded by a fresh, complete issue on the next run.
-  # v3: tool results and outputs are rendered inside code fences.
+  # Content schema version of the importer. Conversations imported with an older version are superseded by a fresh,
+  # complete issue on the next run. v3: tool results and outputs are rendered inside code fences.
   CONTENT_VERSION = 3
 
   # Creates a new syncer with the given configuration
@@ -206,9 +205,8 @@ class Syncer
 
   # Applies the conversation's tags to its issue, tracked to stay cheap
   #
-  # Fresh issues get their tags set directly; existing issues get an additive
-  # merge (preserving manual tags). Already-applied tags are skipped via the
-  # database so re-runs don't re-read journals or re-write tags.
+  # Fresh issues get their tags set directly; existing issues get an additive merge (preserving manual tags).
+  # Already-applied tags are skipped via the database so re-runs don't re-read journals or re-write tags.
   #
   # @param issue_id [Integer] the Redmine issue ID
   # @param conversation [Hash] conversation data with :id and :tags keys
