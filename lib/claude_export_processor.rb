@@ -501,12 +501,11 @@ class ClaudeExportProcessor
 
   # Walks tool calls in order to rebuild the final content of created files
   #
-  # Applies create_file (set content) and str_replace (apply edits). Because the
-  # export sometimes snapshots create_file at a different point than the edits
-  # target, reconstruction is all-or-nothing: only when every edit applies cleanly
-  # is the reconstructed content used; otherwise the verbatim create_file snapshot
-  # is kept so the uploaded file is always a coherent real version (never a mix).
-  # The individual edits are always preserved separately in the rendered notes.
+  # Applies create_file (set content) and str_replace (apply edits). Because the export sometimes snapshots create_file
+  # at a different point than the edits target, reconstruction is all-or-nothing: only when every edit applies cleanly
+  # is the reconstructed content used; otherwise the verbatim create_file snapshot is kept so the uploaded file is
+  # always a coherent real version (never a mix). The individual edits are always preserved separately in the rendered
+  # notes.
   #
   # @param raw_messages [Array<Hash>] original raw message hashes
   # @return [Array<Hash>] file hashes with :path, :content, :create_message_id, :create_index, :description
