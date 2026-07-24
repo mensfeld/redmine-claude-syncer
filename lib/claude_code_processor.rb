@@ -86,7 +86,7 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # @param extra_tags [Array<String>] tags to append to each session found
   # @return [Array<Hash>] processed session hashes
   def process_dir(dir, extra_tags)
-    # FNM_DOTMATCH so ** descends into hidden dirs — sandbox/container stores keep
+    # FNM_DOTMATCH so ** descends into hidden dirs - sandbox/container stores keep
     # transcripts under a hidden ".claude" folder (e.g. <id>/.claude/projects/...).
     paths = Dir.glob(File.join(dir, '**', '*.jsonl'), File::FNM_DOTMATCH)
                .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) }
@@ -217,7 +217,7 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # @return [String] the session title
   def session_title(records, session_id)
     ai_title = records.select { |r| r['type'] == 'ai-title' }.filter_map { |r| r['aiTitle'] }.last
-    # Strip square brackets — some aiTitles are wrapped like "[SUGGESTION MODE: ...]"
+    # Strip square brackets - some aiTitles are wrapped like "[SUGGESTION MODE: ...]"
     title = (ai_title || first_user_prompt(records) || '').to_s.gsub(/[\[\]]/, '').gsub(/\s+/, ' ').strip
     title = "session #{session_id}" if title.empty?
     title.length > 200 ? title[0, 200] : title

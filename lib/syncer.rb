@@ -216,7 +216,7 @@ class Syncer
     desired = conversation[:tags] || []
     return if desired.empty?
 
-    # A fresh issue (create/supersede) has no tags yet, so always set them —
+    # A fresh issue (create/supersede) has no tags yet, so always set them -
     # ignoring any stale tags_applied left over from a previous issue for this
     # conversation (e.g. after a supersede). The tracked skip is only safe when
     # updating an already-tagged existing issue.
@@ -302,7 +302,7 @@ class Syncer
 
     issue_id = existing ? existing[:redmine_issue_id] : create_project_issue(project)
 
-    # Tag projects (additive + idempotent — no-op once present)
+    # Tag projects (additive + idempotent - no-op once present)
     @redmine.add_tags(issue_id, %w[claude project])
 
     pending = project[:docs].reject { |doc| @db.attachment_synced?(doc[:key]) }
