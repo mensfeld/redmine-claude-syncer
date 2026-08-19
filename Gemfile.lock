@@ -31,7 +31,7 @@ GEM
     uri (1.1.1)
     warning (1.6.0)
     yard (0.9.45)
-    yard-lint (1.10.3)
+    yard-lint (1.11.0)
       yard (~> 0.9)
       zeitwerk (~> 2.6)
     zeitwerk (2.8.3)
