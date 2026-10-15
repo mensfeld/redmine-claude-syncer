@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'claude_code_processor'
+require 'database'
 
 RSpec.describe ClaudeCodeProcessor do
   let(:projects_dir) { 'tmp/cc_projects' }
@@ -102,6 +103,56 @@ RSpec.describe ClaudeCodeProcessor do
     expect(transcript[:content]).to include('"sessionId":"sess-1"')
   end
 
+  describe 'skipping unchanged, fully synced sessions' do
+    let(:db_path) { 'tmp/cc_processor_test.db' }
+    let(:db) { Database.new(db_path) }
+
+    after { require 'fileutils'; FileUtils.rm_f(db_path) }
+
+    it 'processes a session when no db/content_version is given' do
+      sessions = described_class.new(projects_dir).process
+      expect(sessions.map { |s| s[:id] }).to eq(['cc-sess-1'])
+    end
+
+    it 'processes a never-before-seen session even with a db given' do
+      sessions = described_class.new(projects_dir, db: db, content_version: 3).process
+      expect(sessions.map { |s| s[:id] }).to eq(['cc-sess-1'])
+    end
+
+    it 'skips a session whose file is unchanged and already fully synced' do
+      described_class.new(projects_dir, db: db, content_version: 3).process
+      db.create_conversation('cc-sess-1', 1, 'u2', 3)
+
+      sessions = described_class.new(projects_dir, db: db, content_version: 3).process
+      expect(sessions).to eq([])
+    end
+
+    it 'reprocesses when the file changed after being marked synced' do
+      described_class.new(projects_dir, db: db, content_version: 3).process
+      db.create_conversation('cc-sess-1', 1, 'u2', 3)
+
+      File.write(session_path, records.map(&:to_json).join("\n") + "\n")
+      sessions = described_class.new(projects_dir, db: db, content_version: 3).process
+      expect(sessions.map { |s| s[:id] }).to eq(['cc-sess-1'])
+    end
+
+    it 'reprocesses when the tracked content version is behind' do
+      described_class.new(projects_dir, db: db, content_version: 3).process
+      db.create_conversation('cc-sess-1', 1, 'u2', 2)
+
+      sessions = described_class.new(projects_dir, db: db, content_version: 3).process
+      expect(sessions.map { |s| s[:id] }).to eq(['cc-sess-1'])
+    end
+
+    it 'reprocesses when a prior run never recorded a last exported message' do
+      described_class.new(projects_dir, db: db, content_version: 3).process
+      db.create_conversation('cc-sess-1', 1, '', 3)
+
+      sessions = described_class.new(projects_dir, db: db, content_version: 3).process
+      expect(sessions.map { |s| s[:id] }).to eq(['cc-sess-1'])
+    end
+  end
+
   describe '#process_projects' do
     it 'returns an empty array' do
       expect(described_class.new(projects_dir).process_projects).to eq([])
@@ -182,7 +233,7 @@ RSpec.describe ClaudeCodeProcessor do
 
     it 'accepts a hash of dir => extra tags' do
       write_session(dir_b, 'h', 1)
-      session = described_class.new(dir_b => ['coi']).process.first
+      session = described_class.new({ dir_b => ['coi'] }).process.first
       expect(session[:tags]).to include('coi')
     end
   end

@@ -6,16 +6,25 @@ require_relative '../lib/syncer'
 # Load environment variables
 Dotenv.load
 
-# Check if ZIP file path is provided
+# Check if an export path is provided
 if ARGV.empty?
-  puts "Usage: #{$0} <claude_export.zip>"
+  puts "Usage: #{$0} <claude_export.zip | dir with export *.zip parts>"
   exit 1
 end
 
-zip_path = ARGV[0]
+export_path = ARGV[0]
 
-unless File.exist?(zip_path)
-  puts "Error: File '#{zip_path}' does not exist"
+unless File.exist?(export_path)
+  puts "Error: '#{export_path}' does not exist"
+  exit 1
+end
+
+# Newer exports are split into several ZIPs (conversations-000.zip, projects-000.zip, ...);
+# a directory imports all of them together
+zip_paths = File.directory?(export_path) ? Dir.glob(File.join(export_path, '*.zip')).sort : [export_path]
+
+if zip_paths.empty?
+  puts "Error: No .zip files found in '#{export_path}'"
   exit 1
 end
 
@@ -38,4 +47,4 @@ config = {
 
 # Create and run the syncer
 syncer = Syncer.new(config)
-syncer.sync(zip_path) 
+syncer.sync(zip_paths) 

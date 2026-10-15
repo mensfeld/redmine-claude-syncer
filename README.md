@@ -78,10 +78,13 @@ chmod +x bin/sync.rb bin/sync_code.rb
 There are two importers. Both are **incremental and idempotent** — run them as often
 as you like (e.g. weekly); they only add what's new and never duplicate.
 
-**Claude.ai conversations** — from an export ZIP:
+**Claude.ai conversations** — from a directory of export ZIPs (current format) or a single export ZIP:
 ```bash
-./bin/sync.rb path/to/export.zip
+./bin/sync.rb ~/Downloads/tmp          # every *.zip in the dir (conversations-000.zip, projects-000.zip, ...)
+./bin/sync.rb path/to/export.zip       # older single-ZIP exports
 ```
+Claude.ai now delivers exports as a `manifest-*.json` listing several ZIP parts with expiring
+download links. Download all parts into one directory and pass that directory.
 
 **Claude Code coding sessions** — no arguments; it reads `config/sync_code.yml`:
 ```bash

@@ -52,78 +52,111 @@ class ClaudeExportProcessor
   # Maximum size (characters) of an inline block before it is attached as a file
   LARGE_BLOCK_THRESHOLD = 10_000
 
-  # Creates a new processor for the given ZIP export file
+  # Creates a new processor for one or more ZIP export files
   #
-  # @param zip_path [String] path to the Claude export ZIP file
-  def initialize(zip_path)
-    @zip_path = zip_path
+  # Older exports are a single ZIP with `conversations.json` and `projects/*.json`;
+  # newer (manifest-based) exports split the data over several ZIPs. All given
+  # ZIPs are scanned and conversations/projects are recognised by their shape, so
+  # either layout works.
+  #
+  # @param zip_paths [String, Array<String>] path(s) to Claude export ZIP file(s)
+  def initialize(zip_paths)
+    @zip_paths = Array(zip_paths)
     @logger = Logger.new('logs/claude_export.log')
   end
 
-  # Processes the ZIP file and extracts all conversations
+  # Processes the ZIP file(s) and extracts all conversations
   #
   # @return [Array<Hash>] array of conversation hashes with :id, :title, :messages keys
   def process
-    @logger.info "Processing Claude export from #{@zip_path}"
+    @logger.info "Processing Claude export from #{@zip_paths.join(', ')}"
 
-    conversations = []
-
-    Zip::File.open(@zip_path) do |zip_file|
-      # Look for the conversations.json file
-      entry = zip_file.find { |e| e.name == 'conversations.json' }
-
-      if entry.nil?
-        @logger.error "No conversations.json file found in the ZIP"
-        return []
-      end
-
-      begin
-        conversations_data = JSON.parse(entry.get_input_stream.read)
-
-        if conversations_data.is_a?(Array)
-          conversations_data.each do |conversation_data|
-            conversation = process_conversation(conversation_data)
-            conversations << conversation if conversation
-          end
-        else
-          @logger.error "Expected an array of conversations in conversations.json"
-        end
-      rescue JSON::ParserError => e
-        @logger.error "Failed to parse conversations.json: #{e.message}"
-      rescue StandardError => e
-        @logger.error "Error processing conversations.json: #{e.message}"
-      end
+    conversations = raw_records[:conversations].filter_map do |data|
+      process_conversation(data)
+    rescue StandardError => e
+      @logger.error "Error processing conversation #{data['uuid']}: #{e.message}"
+      nil
     end
 
     @logger.info "Successfully processed #{conversations.size} conversations"
     conversations
   end
 
-  # Processes the ZIP file and extracts all Claude Projects
+  # Processes the ZIP file(s) and extracts all Claude Projects
   #
   # @return [Array<Hash>] array of project hashes with :id, :name, :docs keys
   def process_projects
-    projects = []
-
-    Zip::File.open(@zip_path) do |zip_file|
-      zip_file.each do |entry|
-        next unless entry.name.start_with?('projects/') && entry.name.end_with?('.json')
-
-        begin
-          data = JSON.parse(entry.get_input_stream.read)
-          project = process_project(data)
-          projects << project if project
-        rescue JSON::ParserError => e
-          @logger.error "Failed to parse #{entry.name}: #{e.message}"
-        end
-      end
-    end
+    projects = raw_records[:projects].filter_map { |data| process_project(data) }
 
     @logger.info "Successfully processed #{projects.size} projects"
     projects
   end
 
   private
+
+  # Scans every JSON entry of every ZIP once and classifies the records found
+  #
+  # A conversation is any object with a `chat_messages` array; a project is any
+  # object with `docs` or `prompt_template` (or any object under `projects/`).
+  # JSON files may hold a single record or an array of them; JSONL is supported
+  # too. Records are deduplicated by uuid (first occurrence wins).
+  #
+  # @return [Hash{Symbol => Array<Hash>}] raw :conversations and :projects
+  def raw_records
+    @raw_records ||= begin
+      found = { conversations: {}, projects: {} }
+
+      @zip_paths.each do |zip_path|
+        Zip::File.open(zip_path) do |zip_file|
+          zip_file.each do |entry|
+            next unless entry.file? && entry.name.match?(/\.jsonl?\z/i)
+
+            parse_entry(entry).each { |record| classify(record, entry.name, found) }
+          end
+        end
+      end
+
+      found.transform_values(&:values)
+    end
+  end
+
+  # Parses a JSON or JSONL ZIP entry into a list of records
+  #
+  # @param entry [Zip::Entry] the ZIP entry
+  # @return [Array<Hash>] parsed hash records (empty on parse errors)
+  def parse_entry(entry)
+    body = entry.get_input_stream.read
+    data =
+      if entry.name.downcase.end_with?('.jsonl')
+        body.each_line.filter_map { |line| JSON.parse(line) unless line.strip.empty? }
+      else
+        JSON.parse(body)
+      end
+    Array(data.is_a?(Hash) ? [data] : data).grep(Hash)
+  rescue JSON::ParserError => e
+    @logger.error "Failed to parse #{entry.name}: #{e.message}"
+    []
+  end
+
+  # Files a record as a conversation or project if it looks like one
+  #
+  # @param record [Hash] parsed JSON object
+  # @param name [String] ZIP entry name it came from
+  # @param found [Hash{Symbol => Hash}] accumulator keyed by kind, then uuid
+  # @return [void]
+  def classify(record, name, found)
+    kind =
+      if record['chat_messages'].is_a?(Array)
+        :conversations
+      elsif record['uuid'] && (record.key?('docs') || record.key?('prompt_template') ||
+                               name.match?(%r{(\A|/)projects/}))
+        :projects
+      end
+    return unless kind
+
+    key = record['uuid'] || "#{name}##{found[kind].size}"
+    found[kind][key] ||= record
+  end
 
   # Processes a single conversation from the export data
   #

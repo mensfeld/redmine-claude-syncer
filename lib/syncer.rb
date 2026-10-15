@@ -13,6 +13,10 @@ class Syncer
   # v3: tool results and outputs are rendered inside code fences.
   CONTENT_VERSION = 3
 
+  # The database, exposed so callers can share it with a processor (e.g. so
+  # ClaudeCodeProcessor can consult sync state to skip unchanged transcripts).
+  attr_reader :db
+
   # Creates a new syncer with the given configuration
   #
   # @param config [Hash] configuration hash with Redmine and database settings
@@ -39,12 +43,12 @@ class Syncer
     )
   end
 
-  # Synchronizes conversations and projects from a Claude export ZIP to Redmine
+  # Synchronizes conversations and projects from Claude export ZIP(s) to Redmine
   #
-  # @param zip_path [String] path to the Claude export ZIP file
+  # @param zip_paths [String, Array<String>] path(s) to the Claude export ZIP file(s)
   # @return [void]
-  def sync(zip_path)
-    import(ClaudeExportProcessor.new(zip_path))
+  def sync(zip_paths)
+    import(ClaudeExportProcessor.new(zip_paths))
   end
 
   # Synchronizes conversations (and projects) from any export processor
