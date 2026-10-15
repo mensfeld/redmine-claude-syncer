@@ -309,9 +309,8 @@ class RedmineClient
 
   # Uploads a message's attachments and posts them as a note on the issue
   #
-  # Attachments that carry content are uploaded to Redmine and attached to the
-  # note; attachments without content (e.g. user images missing from the export)
-  # are only referenced by name. The note is attributed to the given user.
+  # Attachments that carry content are uploaded to Redmine and attached to the note; attachments without content (e.g.
+  # user images missing from the export) are only referenced by name. The note is attributed to the given user.
   #
   # @param issue_id [Integer] Redmine issue ID
   # @param attachments [Array<Hash>] attachment hashes from the export processor

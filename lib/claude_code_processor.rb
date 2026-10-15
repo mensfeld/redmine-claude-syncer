@@ -5,11 +5,9 @@ require 'digest'
 
 # Processes Claude Code session transcripts (~/.claude/projects/*/*.jsonl)
 #
-# Reuses the rendering and attachment logic of {ClaudeExportProcessor} but reads
-# the JSONL transcript format produced by Claude Code instead of a Claude.ai
-# export ZIP. Each session becomes a conversation with the same shape the
-# {Syncer} already understands, so coding sessions are archived in Redmine the
-# same way as Claude.ai conversations.
+# Reuses the rendering and attachment logic of {ClaudeExportProcessor} but reads the JSONL transcript format produced by
+# Claude Code instead of a Claude.ai export ZIP. Each session becomes a conversation with the same shape the {Syncer}
+# already understands, so coding sessions are archived in Redmine the same way as Claude.ai conversations.
 class ClaudeCodeProcessor < ClaudeExportProcessor
   # Base tags applied to every coding-session issue (project tag is appended)
   SESSION_TAGS = %w[coding-session claude-code].freeze
@@ -46,10 +44,9 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
 
   # Processes all session transcripts across every configured directory
   #
-  # Per-directory extra tags are appended to each session's tags. Transcripts are
-  # deduplicated by session id (keeping the most complete copy and unioning tags),
-  # so the same session in more than one location isn't imported twice. Non-transcript
-  # JSONL files (e.g. history.jsonl) are ignored.
+  # Per-directory extra tags are appended to each session's tags. Transcripts are deduplicated by session id (keeping
+  # the most complete copy and unioning tags), so the same session in more than one location isn't imported twice.
+  # Non-transcript JSONL files (e.g. history.jsonl) are ignored.
   #
   # @return [Array<Hash>] array of conversation hashes with :id, :title, :messages keys
   def process
@@ -98,7 +95,7 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # @param extra_tags [Array<String>] tags to append to each session found
   # @return [Array<Hash>] processed session hashes
   def process_dir(dir, extra_tags)
-    # FNM_DOTMATCH so ** descends into hidden dirs — sandbox/container stores keep
+    # FNM_DOTMATCH so ** descends into hidden dirs - sandbox/container stores keep
     # transcripts under a hidden ".claude" folder (e.g. <id>/.claude/projects/...).
     paths = Dir.glob(File.join(dir, '**', '*.jsonl'), File::FNM_DOTMATCH)
                .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) }
@@ -255,7 +252,7 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   # @return [String] the session title
   def session_title(records, session_id)
     ai_title = records.select { |r| r['type'] == 'ai-title' }.filter_map { |r| r['aiTitle'] }.last
-    # Strip square brackets — some aiTitles are wrapped like "[SUGGESTION MODE: ...]"
+    # Strip square brackets - some aiTitles are wrapped like "[SUGGESTION MODE: ...]"
     title = (ai_title || first_user_prompt(records) || '').to_s.gsub(/[\[\]]/, '').gsub(/\s+/, ' ').strip
     title = "session #{session_id}" if title.empty?
     title.length > 200 ? title[0, 200] : title

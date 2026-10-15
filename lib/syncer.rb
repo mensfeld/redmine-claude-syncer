@@ -8,9 +8,8 @@ require 'securerandom'
 
 # Main orchestrator that synchronizes Claude conversations to Redmine issues
 class Syncer
-  # Content schema version of the importer. Conversations imported with an older
-  # version are superseded by a fresh, complete issue on the next run.
-  # v3: tool results and outputs are rendered inside code fences.
+  # Content schema version of the importer. Conversations imported with an older version are superseded by a fresh,
+  # complete issue on the next run. v3: tool results and outputs are rendered inside code fences.
   CONTENT_VERSION = 3
 
   # The database, exposed so callers can share it with a processor (e.g. so
@@ -210,9 +209,8 @@ class Syncer
 
   # Applies the conversation's tags to its issue, tracked to stay cheap
   #
-  # Fresh issues get their tags set directly; existing issues get an additive
-  # merge (preserving manual tags). Already-applied tags are skipped via the
-  # database so re-runs don't re-read journals or re-write tags.
+  # Fresh issues get their tags set directly; existing issues get an additive merge (preserving manual tags).
+  # Already-applied tags are skipped via the database so re-runs don't re-read journals or re-write tags.
   #
   # @param issue_id [Integer] the Redmine issue ID
   # @param conversation [Hash] conversation data with :id and :tags keys
@@ -222,7 +220,7 @@ class Syncer
     desired = conversation[:tags] || []
     return if desired.empty?
 
-    # A fresh issue (create/supersede) has no tags yet, so always set them —
+    # A fresh issue (create/supersede) has no tags yet, so always set them -
     # ignoring any stale tags_applied left over from a previous issue for this
     # conversation (e.g. after a supersede). The tracked skip is only safe when
     # updating an already-tagged existing issue.
@@ -308,7 +306,7 @@ class Syncer
 
     issue_id = existing ? existing[:redmine_issue_id] : create_project_issue(project)
 
-    # Tag projects (additive + idempotent — no-op once present)
+    # Tag projects (additive + idempotent - no-op once present)
     @redmine.add_tags(issue_id, %w[claude project])
 
     pending = project[:docs].reject { |doc| @db.attachment_synced?(doc[:key]) }
