@@ -16,7 +16,8 @@ chmod +x bin/sync.rb              # Make sync script executable
 
 ### Running the Syncer
 ```bash
-./bin/sync.rb path/to/export.zip  # Sync a Claude.ai export ZIP to Redmine
+./bin/sync.rb path/to/export_dir  # Sync all export *.zip parts in a dir (current split format)
+./bin/sync.rb path/to/export.zip  # Sync an (older, single) Claude.ai export ZIP
 ./bin/sync_code.rb                # Sync local Claude Code sessions (~/.claude/projects)
 ```
 
@@ -50,8 +51,9 @@ Optional configuration:
 - Tracks processed conversations in SQLite database
 
 **ClaudeExportProcessor** (`lib/claude_export_processor.rb`) - Handles Claude export parsing:
-- Extracts conversations from Claude ZIP exports
-- Parses `conversations.json` files
+- Extracts conversations from one or more Claude ZIP exports
+- Scans every `*.json`/`*.jsonl` entry and classifies records by shape (`chat_messages` →
+  conversation; `docs`/`prompt_template` or under `projects/` → project), deduped by uuid
 - Converts Claude message format to internal representation
 
 **ClaudeCodeProcessor** (`lib/claude_code_processor.rb`) - Claude Code session reader:

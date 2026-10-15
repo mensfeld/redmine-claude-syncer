@@ -27,9 +27,17 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   #   - a Hash of `path => [extra_tags]`
   #   - an Array of `[path, [extra_tags]]` pairs
   #
+  # A shared {Database} lets us skip transcripts that haven't changed since the last run and were already
+  # fully synced (see {#skip_unchanged?}), avoiding a full read + JSON-parse of every session file on every
+  # run. Both are optional; without them every transcript is processed (no skipping).
+  #
   # @param dir_configs [String, Array, Hash] session directory configuration
-  def initialize(dir_configs)
+  # @param db [Database, nil] shared database used to detect unchanged, synced sessions
+  # @param content_version [Integer, nil] the importer's current content version
+  def initialize(dir_configs, db: nil, content_version: nil)
     @dir_configs = normalize_dir_configs(dir_configs)
+    @db = db
+    @content_version = content_version
     @logger = Logger.new('logs/claude_code.log')
   end
 
@@ -93,7 +101,11 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
                .uniq.sort
 
     paths.filter_map do |path|
+      next nil if skip_unchanged?(path)
+
+      stat = File.stat(path)
       session = process_session_file(path)
+      @db&.update_session_file_cache(path, stat.mtime.to_f, stat.size)
       next nil unless session
 
       session[:tags] = (session[:tags] + extra_tags).uniq unless extra_tags.empty?
@@ -102,6 +114,27 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
       @logger.error "Failed to process session #{path}: #{e.message}"
       nil
     end
+  end
+
+  # Determines whether a transcript can be skipped entirely, without reading it
+  #
+  # A file is skippable when its mtime/size match the last time we processed it *and* its conversation is
+  # already fully synced at the current content version. This lets re-runs skip the (often large) unchanged
+  # sessions and only pay the parsing cost for transcripts that actually grew or are new.
+  #
+  # @param path [String] path to the .jsonl transcript
+  # @return [Boolean] true if this file can be skipped without processing
+  def skip_unchanged?(path)
+    return false unless @db && @content_version
+
+    stat = File.stat(path)
+    cached = @db.session_file_cache(path)
+    return false unless cached && cached[:mtime] == stat.mtime.to_f && cached[:size] == stat.size
+
+    # Session filenames are the session id (e.g. <session-id>.jsonl), matching the
+    # same fallback used in #process_session_file, so this needs no file read.
+    conversation_id = "cc-#{File.basename(path, '.jsonl')}"
+    @db.conversation_up_to_date?(conversation_id, @content_version)
   end
 
   # Processes a single session transcript file into a conversation hash

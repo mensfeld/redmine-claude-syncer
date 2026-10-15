@@ -31,6 +31,8 @@ data-*.zip
 
 # Local Claude Code settings
 .claude/
+.codex
+mise.toml
 
 # Documentation
 .yardoc/

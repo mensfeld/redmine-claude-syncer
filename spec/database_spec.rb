@@ -119,6 +119,48 @@ RSpec.describe Database do
     end
   end
 
+  describe 'session file cache' do
+    let(:db) { described_class.new(db_path) }
+
+    it 'returns nil for an unknown path' do
+      expect(db.session_file_cache('/tmp/missing.jsonl')).to be_nil
+    end
+
+    it 'stores and reads back the cached mtime/size' do
+      db.update_session_file_cache('/tmp/sess.jsonl', 123.456, 789)
+      expect(db.session_file_cache('/tmp/sess.jsonl')).to eq(mtime: 123.456, size: 789)
+    end
+
+    it 'overwrites the cache on repeated updates for the same path' do
+      db.update_session_file_cache('/tmp/sess.jsonl', 1.0, 10)
+      db.update_session_file_cache('/tmp/sess.jsonl', 2.0, 20)
+      expect(db.session_file_cache('/tmp/sess.jsonl')).to eq(mtime: 2.0, size: 20)
+    end
+  end
+
+  describe '#conversation_up_to_date?' do
+    let(:db) { described_class.new(db_path) }
+
+    it 'is false for an unknown conversation' do
+      expect(db.conversation_up_to_date?('missing', 3)).to be false
+    end
+
+    it 'is false when the content version is behind' do
+      db.create_conversation('c', 1, 'm', 2)
+      expect(db.conversation_up_to_date?('c', 3)).to be false
+    end
+
+    it 'is true when the content version meets or exceeds the target' do
+      db.create_conversation('c', 1, 'm', 3)
+      expect(db.conversation_up_to_date?('c', 3)).to be true
+    end
+
+    it 'is false when there is no last exported message yet' do
+      db.create_conversation('c', 1, '', 3)
+      expect(db.conversation_up_to_date?('c', 3)).to be false
+    end
+  end
+
   describe '#get_project and #create_project' do
     let(:db) { described_class.new(db_path) }
 

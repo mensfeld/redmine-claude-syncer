@@ -125,6 +125,54 @@ class Database
     @logger.info "Recorded #{kind} attachment '#{filename}' for conversation #{conversation_id}"
   end
 
+  # Retrieves the cached mtime/size for a session transcript file
+  #
+  # Used to cheaply detect that a Claude Code transcript hasn't changed since the
+  # last run, so it can be skipped without reading or parsing it.
+  #
+  # @param path [String] absolute path to the .jsonl transcript
+  # @return [Hash, nil] `{mtime:, size:}` if cached, nil otherwise
+  def session_file_cache(path)
+    row = @db.get_first_row("SELECT mtime, size FROM session_files WHERE path = ?", path)
+    return nil unless row
+
+    { mtime: row[0], size: row[1] }
+  end
+
+  # Records the mtime/size of a session transcript file after processing it
+  #
+  # @param path [String] absolute path to the .jsonl transcript
+  # @param mtime [Float] the file's mtime (seconds since epoch)
+  # @param size [Integer] the file's size in bytes
+  # @return [void]
+  def update_session_file_cache(path, mtime, size)
+    @db.execute(
+      "INSERT INTO session_files (path, mtime, size, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(path) DO UPDATE SET mtime = excluded.mtime, size = excluded.size, updated_at = CURRENT_TIMESTAMP",
+      [path, mtime, size]
+    )
+  end
+
+  # Checks whether a conversation was already fully imported at the given content version
+  #
+  # A conversation only counts as up to date once it has both a tracked content version at least as new as
+  # expected and a last exported message (so a run that failed partway through, leaving the conversation
+  # record incomplete, is retried rather than skipped).
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @param min_content_version [Integer] the content version required to be considered current
+  # @return [Boolean] true if the conversation is fully synced at/above that version
+  def conversation_up_to_date?(conversation_id, min_content_version)
+    row = @db.get_first_row(
+      "SELECT content_version FROM conversations
+       WHERE claude_conversation_id = ?
+         AND last_exported_message_id IS NOT NULL
+         AND last_exported_message_id != ''",
+      conversation_id
+    )
+    !row.nil? && row[0].to_i >= min_content_version
+  end
+
   # Retrieves the tags already applied to a conversation's issue by the importer
   #
   # @param conversation_id [String] the Claude conversation UUID
@@ -216,6 +264,15 @@ class Database
         claude_project_id TEXT PRIMARY KEY,
         redmine_issue_id INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    SQL
+
+    @db.execute <<-SQL
+      CREATE TABLE IF NOT EXISTS session_files (
+        path TEXT PRIMARY KEY,
+        mtime REAL,
+        size INTEGER,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     SQL
 
