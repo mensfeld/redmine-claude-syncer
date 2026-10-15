@@ -27,10 +27,9 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
   #   - a Hash of `path => [extra_tags]`
   #   - an Array of `[path, [extra_tags]]` pairs
   #
-  # A shared {Database} lets us skip transcripts that haven't changed since the
-  # last run and were already fully synced (see {#skip_unchanged?}), avoiding a
-  # full read + JSON-parse of every session file on every run. Both are optional;
-  # without them every transcript is processed (no skipping).
+  # A shared {Database} lets us skip transcripts that haven't changed since the last run and were already
+  # fully synced (see {#skip_unchanged?}), avoiding a full read + JSON-parse of every session file on every
+  # run. Both are optional; without them every transcript is processed (no skipping).
   #
   # @param dir_configs [String, Array, Hash] session directory configuration
   # @param db [Database, nil] shared database used to detect unchanged, synced sessions
@@ -119,10 +118,9 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
 
   # Determines whether a transcript can be skipped entirely, without reading it
   #
-  # A file is skippable when its mtime/size match the last time we processed it
-  # *and* its conversation is already fully synced at the current content version.
-  # This lets re-runs skip the (often large) unchanged sessions and only pay the
-  # parsing cost for transcripts that actually grew or are new.
+  # A file is skippable when its mtime/size match the last time we processed it *and* its conversation is
+  # already fully synced at the current content version. This lets re-runs skip the (often large) unchanged
+  # sessions and only pay the parsing cost for transcripts that actually grew or are new.
   #
   # @param path [String] path to the .jsonl transcript
   # @return [Boolean] true if this file can be skipped without processing

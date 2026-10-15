@@ -54,10 +54,9 @@ class ClaudeExportProcessor
 
   # Creates a new processor for one or more ZIP export files
   #
-  # Older exports are a single ZIP with `conversations.json` and `projects/*.json`;
-  # newer (manifest-based) exports split the data over several ZIPs. All given
-  # ZIPs are scanned and conversations/projects are recognised by their shape, so
-  # either layout works.
+  # Older exports are a single ZIP with `conversations.json` and `projects/*.json`; newer (manifest-based)
+  # exports split the data over several ZIPs. All given ZIPs are scanned and conversations/projects are
+  # recognised by their shape, so either layout works.
   #
   # @param zip_paths [String, Array<String>] path(s) to Claude export ZIP file(s)
   def initialize(zip_paths)
@@ -96,10 +95,9 @@ class ClaudeExportProcessor
 
   # Scans every JSON entry of every ZIP once and classifies the records found
   #
-  # A conversation is any object with a `chat_messages` array; a project is any
-  # object with `docs` or `prompt_template` (or any object under `projects/`).
-  # JSON files may hold a single record or an array of them; JSONL is supported
-  # too. Records are deduplicated by uuid (first occurrence wins).
+  # A conversation is any object with a `chat_messages` array; a project is any object with `docs` or
+  # `prompt_template` (or any object under `projects/`). JSON files may hold a single record or an array of
+  # them; JSONL is supported too. Records are deduplicated by uuid (first occurrence wins).
   #
   # @return [Hash{Symbol => Array<Hash>}] raw :conversations and :projects
   def raw_records

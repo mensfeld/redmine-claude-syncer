@@ -155,10 +155,9 @@ class Database
 
   # Checks whether a conversation was already fully imported at the given content version
   #
-  # A conversation only counts as up to date once it has both a tracked content
-  # version at least as new as expected and a last exported message (so a run
-  # that failed partway through — leaving the conversation record incomplete —
-  # is retried rather than skipped).
+  # A conversation only counts as up to date once it has both a tracked content version at least as new as
+  # expected and a last exported message (so a run that failed partway through, leaving the conversation
+  # record incomplete, is retried rather than skipped).
   #
   # @param conversation_id [String] the Claude conversation UUID
   # @param min_content_version [Integer] the content version required to be considered current
