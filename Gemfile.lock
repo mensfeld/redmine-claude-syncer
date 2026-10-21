@@ -4,7 +4,7 @@ GEM
     diff-lcs (1.6.2)
     dotenv (3.2.0)
     fileutils (1.8.1)
-    json (3.0.2)
+    json (3.1.0)
     logger (1.7.0)
     net-http (0.10.0)
       net-protocol (>= 0.3.0)
