@@ -1,8 +1,8 @@
+require_relative 'log_file'
 require 'net/http'
 require 'uri'
 require 'json'
 require 'logger'
-require_relative 'log_file'
 require 'fileutils'
 
 # HTTP client for interacting with the Redmine REST API

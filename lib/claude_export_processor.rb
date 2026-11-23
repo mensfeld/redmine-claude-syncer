@@ -1,7 +1,7 @@
+require_relative 'log_file'
 require 'zip'
 require 'json'
 require 'logger'
-require_relative 'log_file'
 require 'fileutils'
 require 'date'
 require 'time'

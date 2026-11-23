@@ -1,7 +1,7 @@
 require_relative 'claude_export_processor'
+require_relative 'log_file'
 require 'json'
 require 'logger'
-require_relative 'log_file'
 require 'digest'
 
 # Processes Claude Code session transcripts (~/.claude/projects/*/*.jsonl)

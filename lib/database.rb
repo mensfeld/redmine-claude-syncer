@@ -1,6 +1,6 @@
+require_relative 'log_file'
 require 'sqlite3'
 require 'logger'
-require_relative 'log_file'
 require 'fileutils'
 
 # SQLite database layer for tracking synced conversations and artifacts
