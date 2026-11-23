@@ -1,5 +1,6 @@
 require 'sqlite3'
 require 'logger'
+require_relative 'log_file'
 require 'fileutils'
 
 # SQLite database layer for tracking synced conversations and artifacts
@@ -9,7 +10,7 @@ class Database
   # @param db_path [String] path to the SQLite database file
   def initialize(db_path)
     @db_path = db_path
-    @logger = Logger.new('logs/database.log')
+    @logger = LogFile.logger('logs/database.log')
     setup_database
   end
 

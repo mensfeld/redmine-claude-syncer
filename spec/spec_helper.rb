@@ -26,9 +26,8 @@ ENV['DATABASE_PATH'] = 'tmp/test_conversations.db'
 ENV['LOG_FILE'] = 'tmp/test.log'
 ENV['LOG_LEVEL'] = 'ERROR'
 
-# Ensure tmp and logs directories exist for tests
+# Ensure tmp directory exists for tests
 FileUtils.mkdir_p('tmp')
-FileUtils.mkdir_p('logs')
 
 # Load lib files
 $LOAD_PATH.unshift File.expand_path('../lib', __dir__)
