@@ -1,3 +1,4 @@
+require_relative 'log_file'
 require 'net/http'
 require 'uri'
 require 'json'
@@ -27,7 +28,7 @@ class RedmineClient
     @tracker_id = tracker_id
     @status_id = status_id
     @priority_id = priority_id
-    @logger = Logger.new('logs/redmine.log')
+    @logger = LogFile.logger('logs/redmine.log')
   end
 
   # Creates a new issue in Redmine

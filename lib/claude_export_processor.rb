@@ -1,3 +1,4 @@
+require_relative 'log_file'
 require 'zip'
 require 'json'
 require 'logger'
@@ -61,7 +62,7 @@ class ClaudeExportProcessor
   # @param zip_paths [String, Array<String>] path(s) to Claude export ZIP file(s)
   def initialize(zip_paths)
     @zip_paths = Array(zip_paths)
-    @logger = Logger.new('logs/claude_export.log')
+    @logger = LogFile.logger('logs/claude_export.log')
   end
 
   # Processes the ZIP file(s) and extracts all conversations
