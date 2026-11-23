@@ -7,6 +7,9 @@ require 'fileutils'
 
 # HTTP client for interacting with the Redmine REST API
 class RedmineClient
+  # Raised when a tracker, status or priority ID is not a base-10 integer
+  class InvalidIdError < ArgumentError; end
+
   # Creates a new Redmine API client
   #
   # @param url [String] base URL of the Redmine instance
@@ -15,9 +18,10 @@ class RedmineClient
   # @param project_id [String] target project identifier
   # @param human_user_id [Integer] Redmine user ID for human
   # @param claude_user_id [Integer] Redmine user ID for Claude
-  # @param tracker_id [Integer, String, nil] issue tracker ID (nil means 1)
-  # @param status_id [Integer, String, nil] issue status ID (nil means 1)
-  # @param priority_id [Integer, String, nil] issue priority ID (nil means 2)
+  # @param tracker_id [Integer, String, nil] issue tracker ID (nil or empty means 1)
+  # @param status_id [Integer, String, nil] issue status ID (nil or empty means 1)
+  # @param priority_id [Integer, String, nil] issue priority ID (nil or empty means 2)
+  # @raise [InvalidIdError] when an ID is not a base-10 integer
   def initialize(url, human_api_key, claude_api_key, project_id, human_user_id, claude_user_id, tracker_id = nil, status_id = nil, priority_id = nil)
     @base_url = url.chomp('/')
     @human_api_key = human_api_key
@@ -25,9 +29,9 @@ class RedmineClient
     @project_id = project_id
     @human_user_id = human_user_id
     @claude_user_id = claude_user_id
-    @tracker_id = Integer(tracker_id || 1)
-    @status_id = Integer(status_id || 1)
-    @priority_id = Integer(priority_id || 2)
+    @tracker_id = parse_id('REDMINE_TRACKER_ID', tracker_id, 1)
+    @status_id = parse_id('REDMINE_STATUS_ID', status_id, 1)
+    @priority_id = parse_id('REDMINE_PRIORITY_ID', priority_id, 2)
     @logger = LogFile.logger('logs/redmine.log')
   end
 
@@ -388,6 +392,22 @@ class RedmineClient
   end
 
   private
+
+  # Converts an ID setting to an Integer, falling back to the default when it is unset or empty
+  #
+  # @param name [String] setting name used in the error message
+  # @param value [Integer, String, nil] configured value
+  # @param default [Integer] value used when the setting is unset or empty
+  # @return [Integer] parsed ID
+  # @raise [InvalidIdError] when the value is not a base-10 integer
+  def parse_id(name, value, default)
+    return value if value.is_a?(Integer)
+    return default if value.nil? || value.strip.empty?
+
+    Integer(value, 10)
+  rescue ArgumentError
+    raise InvalidIdError, "#{name} must be an integer, got #{value.inspect}"
+  end
 
   # Makes an HTTP request to the Redmine API with retry logic
   #

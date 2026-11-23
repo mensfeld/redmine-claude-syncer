@@ -57,6 +57,26 @@ RSpec.describe RedmineClient do
 
       expect(sent_issue(client)).to include(tracker_id: 3, status_id: 4, priority_id: 5)
     end
+
+    it 'uses the defaults when the IDs are empty strings' do
+      client = described_class.new('https://redmine.example.com', 'h', 'c', 'p', 1, 2, '', ' ', '')
+
+      expect(sent_issue(client)).to include(tracker_id: 1, status_id: 1, priority_id: 2)
+    end
+
+    it 'parses IDs with leading zeros as base 10' do
+      client = described_class.new('https://redmine.example.com', 'h', 'c', 'p', 1, 2, '010', '08', '2')
+
+      expect(sent_issue(client)).to include(tracker_id: 10, status_id: 8, priority_id: 2)
+    end
+  end
+
+  describe 'invalid IDs' do
+    it 'raises an error naming the setting for a non-numeric ID' do
+      expect do
+        described_class.new('https://redmine.example.com', 'h', 'c', 'p', 1, 2, '1', 'abc')
+      end.to raise_error(RedmineClient::InvalidIdError, 'REDMINE_STATUS_ID must be an integer, got "abc"')
+    end
   end
 
   describe '#format_message_with_code' do
