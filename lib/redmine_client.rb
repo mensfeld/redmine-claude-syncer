@@ -15,19 +15,19 @@ class RedmineClient
   # @param project_id [String] target project identifier
   # @param human_user_id [Integer] Redmine user ID for human
   # @param claude_user_id [Integer] Redmine user ID for Claude
-  # @param tracker_id [Integer] issue tracker ID
-  # @param status_id [Integer] issue status ID
-  # @param priority_id [Integer] issue priority ID
-  def initialize(url, human_api_key, claude_api_key, project_id, human_user_id, claude_user_id, tracker_id = 1, status_id = 1, priority_id = 2)
+  # @param tracker_id [Integer, String, nil] issue tracker ID (nil means 1)
+  # @param status_id [Integer, String, nil] issue status ID (nil means 1)
+  # @param priority_id [Integer, String, nil] issue priority ID (nil means 2)
+  def initialize(url, human_api_key, claude_api_key, project_id, human_user_id, claude_user_id, tracker_id = nil, status_id = nil, priority_id = nil)
     @base_url = url.chomp('/')
     @human_api_key = human_api_key
     @claude_api_key = claude_api_key
     @project_id = project_id
     @human_user_id = human_user_id
     @claude_user_id = claude_user_id
-    @tracker_id = tracker_id
-    @status_id = status_id
-    @priority_id = priority_id
+    @tracker_id = Integer(tracker_id || 1)
+    @status_id = Integer(status_id || 1)
+    @priority_id = Integer(priority_id || 2)
     @logger = LogFile.logger('logs/redmine.log')
   end
 

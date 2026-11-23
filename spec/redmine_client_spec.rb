@@ -33,6 +33,32 @@ RSpec.describe RedmineClient do
     end
   end
 
+  describe '#create_issue' do
+    let(:response) { instance_double(Net::HTTPResponse, body: '{"issue":{"id":7}}') }
+
+    def sent_issue(client)
+      sent = nil
+      allow(client).to receive(:make_request) do |_method, _path, data, _key|
+        sent = data[:issue]
+        response
+      end
+      client.create_issue('Subject', 'Description')
+      sent
+    end
+
+    it 'uses tracker 1, status 1 and priority 2 when the IDs are nil' do
+      client = described_class.new('https://redmine.example.com', 'h', 'c', 'p', 1, 2, nil, nil, nil)
+
+      expect(sent_issue(client)).to include(tracker_id: 1, status_id: 1, priority_id: 2)
+    end
+
+    it 'sends the given IDs as integers' do
+      client = described_class.new('https://redmine.example.com', 'h', 'c', 'p', 1, 2, '3', '4', '5')
+
+      expect(sent_issue(client)).to include(tracker_id: 3, status_id: 4, priority_id: 5)
+    end
+  end
+
   describe '#format_message_with_code' do
     let(:client) do
       described_class.new(
