@@ -23,13 +23,15 @@ RSpec.describe LogFile do
   context 'when logs/ does not exist' do
     before { expect(Dir.exist?('logs')).to be(false) }
 
-    it 'creates it for every component logger' do
-      Database.new(File.join(Dir.pwd, 'db/test.db'))
-      RedmineClient.new('https://redmine.example.com', 'h', 'c', 'p', 1, 2)
-      ClaudeExportProcessor.new([])
-      ClaudeCodeProcessor.new([])
+    {
+      'database' => -> { Database.new(File.join(Dir.pwd, 'db/test.db')) },
+      'redmine' => -> { RedmineClient.new('https://redmine.example.com', 'h', 'c', 'p', 1, 2) },
+      'claude_export' => -> { ClaudeExportProcessor.new([]) },
+      'claude_code' => -> { ClaudeCodeProcessor.new([]) }
+    }.each do |name, build|
+      it "creates it for the #{name} logger" do
+        build.call
 
-      %w[database redmine claude_export claude_code].each do |name|
         expect(File.exist?("logs/#{name}.log")).to be(true)
       end
     end
