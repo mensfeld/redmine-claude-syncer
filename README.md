@@ -120,7 +120,6 @@ same `db/conversations.db` so re-runs know what's already imported). On each run
 - `lib/` - Ruby source code
 - `db/` - SQLite database files
 - `logs/` - Application logs
-- `artifacts/` - Exported artifacts (if any)
 
 ## License
 

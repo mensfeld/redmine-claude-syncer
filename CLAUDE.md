@@ -179,18 +179,24 @@ upgraded to full content. Once at the current version, runs are incremental.
 - `redmine_issue_id` - Corresponding Redmine issue ID
 - `last_exported_message_id` - Last processed message UUID for incremental sync
 - `content_version` - Importer content version used (drives superseding)
+- `tags_applied` - Comma-separated tags already applied to the Redmine issue
 
 **attachments** table:
 - `conversation_id` - Conversation (or project) the attachment belongs to
 - `message_id` - Claude message UUID the attachment belongs to
 - `attachment_key` (UNIQUE) - Stable idempotency key (message + source + content hash)
-- `kind` - Attachment kind (`document`, `image`, `artifact`, `file`, `code`, `thinking`, `toolcall`, `toolresult`, `project_doc`)
+- `kind` - Attachment kind (`document`, `image`, `artifact`, `file`, `code`, `thinking`, `toolcall`, `toolresult`, `edit`, `transcript`, `project_doc`)
 - `filename` - File name used in Redmine
 - `redmine_attachment_id` - Redmine attachment ID if known
 
 **projects** table:
 - `claude_project_id` (PRIMARY KEY) - Claude project UUID
 - `redmine_issue_id` - Corresponding Redmine issue ID
+
+**session_files** table:
+- `path` (PRIMARY KEY) - Claude Code session transcript path
+- `mtime` - File modification time when last processed
+- `size` - File size when last processed
 
 ## File Structure
 
@@ -201,4 +207,3 @@ upgraded to full content. Once at the current version, runs are incremental.
 - `lib/` - Core Ruby classes and business logic
 - `db/` - SQLite database files
 - `logs/` - Application log files (separate logs per component)
-- `artifacts/` - Extracted artifacts from conversations (if any)
