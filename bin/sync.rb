@@ -46,5 +46,10 @@ config = {
 }
 
 # Create and run the syncer
-syncer = Syncer.new(config)
+begin
+  syncer = Syncer.new(config)
+rescue RedmineClient::InvalidIdError => e
+  puts "Error: #{e.message}"
+  exit 1
+end
 syncer.sync(zip_paths) 

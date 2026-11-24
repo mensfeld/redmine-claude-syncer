@@ -29,11 +29,11 @@ Create a `.env` file with these required variables:
 - `REDMINE_PROJECT_ID` - Target project ID
 - `REDMINE_HUMAN_USER_ID` - Human user ID in Redmine
 - `REDMINE_CLAUDE_USER_ID` - Claude user ID in Redmine
+
+Optional configuration:
 - `REDMINE_TRACKER_ID` - Issue tracker ID (default: 1)
 - `REDMINE_STATUS_ID` - Issue status ID (default: 1)
 - `REDMINE_PRIORITY_ID` - Issue priority ID (default: 2)
-
-Optional configuration:
 - `REDMINE_CLOSED_STATUS_ID` - Status ID used when closing superseded issues (default: 5)
 - `config/sync_code.yml` - Session directories for `bin/sync_code.rb` (a `path => [extra tags]` map). Defaults to `~/.claude/projects` and `~/.coi/sessions-claude` (tagged `coi`). Override its path with `SYNC_CODE_CONFIG`.
 - `DATABASE_PATH` - SQLite database path (default: db/conversations.db)
