@@ -174,7 +174,10 @@ class ClaudeExportProcessor
       messages: messages,
       created_at: parse_timestamp(data['created_at']),
       updated_at: parse_timestamp(data['updated_at']),
-      tags: %w[claude web]
+      tags: %w[claude web],
+      # Raw export record, kept verbatim in the source snapshot (see SourceArchive)
+      source_files: { 'conversation.json' => JSON.pretty_generate(data) },
+      source_paths: @zip_paths.map { |path| File.basename(path) }
     }
   end
 
