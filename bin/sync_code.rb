@@ -57,6 +57,11 @@ config = {
 # Create and run the syncer over Claude Code sessions. The syncer's database is
 # shared with the processor so unchanged, already-synced session transcripts can
 # be skipped without reading them (see ClaudeCodeProcessor#skip_unchanged?).
-syncer = Syncer.new(config)
+begin
+  syncer = Syncer.new(config)
+rescue RedmineClient::InvalidIdError => e
+  puts "Error: #{e.message}"
+  exit 1
+end
 processor = ClaudeCodeProcessor.new(dir_configs, db: syncer.db, content_version: Syncer::CONTENT_VERSION)
 syncer.import(processor)

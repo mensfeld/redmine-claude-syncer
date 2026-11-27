@@ -2,6 +2,7 @@ require_relative 'database'
 require_relative 'claude_export_processor'
 require_relative 'redmine_client'
 require_relative 'source_archive'
+require_relative 'log_file'
 require 'logger'
 require 'fileutils'
 require 'date'
@@ -22,7 +23,7 @@ class Syncer
   # @param config [Hash] configuration hash with Redmine and database settings
   def initialize(config)
     @config = config
-    @logger = Logger.new(config[:log_file] || 'logs/sync.log')
+    @logger = LogFile.logger(config[:log_file] || 'logs/sync.log')
     @logger.level = config[:log_level] ? Logger.const_get(config[:log_level]) : Logger::INFO
 
     @human_user_id = config[:redmine_human_user_id]

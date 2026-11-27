@@ -57,11 +57,11 @@ REDMINE_CLAUDE_API_KEY=your-claude-api-key
 REDMINE_PROJECT_ID=your-project-id
 REDMINE_HUMAN_USER_ID=your-human-user-id
 REDMINE_CLAUDE_USER_ID=your-claude-user-id
-REDMINE_TRACKER_ID=1
-REDMINE_STATUS_ID=1
-REDMINE_PRIORITY_ID=2
 
 # Optional
+REDMINE_TRACKER_ID=1                   # tracker of created issues
+REDMINE_STATUS_ID=1                    # status of created issues
+REDMINE_PRIORITY_ID=2                  # priority of created issues
 REDMINE_CLOSED_STATUS_ID=5            # status used when closing a superseded issue
 DATABASE_PATH=db/conversations.db      # tracking DB (reuse the same one across runs)
 LOG_FILE=logs/sync.log
@@ -120,7 +120,6 @@ same `db/conversations.db` so re-runs know what's already imported). On each run
 - `lib/` - Ruby source code
 - `db/` - SQLite database files
 - `logs/` - Application logs
-- `artifacts/` - Exported artifacts (if any)
 
 ## License
 

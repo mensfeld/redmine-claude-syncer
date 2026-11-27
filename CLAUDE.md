@@ -29,11 +29,11 @@ Create a `.env` file with these required variables:
 - `REDMINE_PROJECT_ID` - Target project ID
 - `REDMINE_HUMAN_USER_ID` - Human user ID in Redmine
 - `REDMINE_CLAUDE_USER_ID` - Claude user ID in Redmine
+
+Optional configuration:
 - `REDMINE_TRACKER_ID` - Issue tracker ID (default: 1)
 - `REDMINE_STATUS_ID` - Issue status ID (default: 1)
 - `REDMINE_PRIORITY_ID` - Issue priority ID (default: 2)
-
-Optional configuration:
 - `REDMINE_CLOSED_STATUS_ID` - Status ID used when closing superseded issues (default: 5)
 - `config/sync_code.yml` - Session directories for `bin/sync_code.rb` (a `path => [extra tags]` map). Defaults to `~/.claude/projects` and `~/.coi/sessions-claude` (tagged `coi`). Override its path with `SYNC_CODE_CONFIG`.
 - `DATABASE_PATH` - SQLite database path (default: db/conversations.db)
@@ -199,18 +199,24 @@ upgraded to full content. Once at the current version, runs are incremental.
 - `redmine_issue_id` - Corresponding Redmine issue ID
 - `last_exported_message_id` - Last processed message UUID for incremental sync
 - `content_version` - Importer content version used (drives superseding)
+- `tags_applied` - Comma-separated tags already applied to the Redmine issue
 
 **attachments** table:
 - `conversation_id` - Conversation (or project) the attachment belongs to
 - `message_id` - Claude message UUID the attachment belongs to
 - `attachment_key` (UNIQUE) - Stable idempotency key (message + source + content hash)
-- `kind` - Attachment kind (`document`, `image`, `artifact`, `file`, `code`, `thinking`, `toolcall`, `toolresult`, `project_doc`, `source`)
+- `kind` - Attachment kind (`document`, `image`, `artifact`, `file`, `code`, `thinking`, `toolcall`, `toolresult`, `edit`, `transcript` (legacy, pre-snapshot), `project_doc`, `source`)
 - `filename` - File name used in Redmine
 - `redmine_attachment_id` - Redmine attachment ID if known
 
 **projects** table:
 - `claude_project_id` (PRIMARY KEY) - Claude project UUID
 - `redmine_issue_id` - Corresponding Redmine issue ID
+
+**session_files** table:
+- `path` (PRIMARY KEY) - Claude Code session transcript path
+- `mtime` - File modification time when last processed
+- `size` - File size when last processed
 
 ## File Structure
 
@@ -221,4 +227,3 @@ upgraded to full content. Once at the current version, runs are incremental.
 - `lib/` - Core Ruby classes and business logic
 - `db/` - SQLite database files
 - `logs/` - Application log files (separate logs per component)
-- `artifacts/` - Extracted artifacts from conversations (if any)

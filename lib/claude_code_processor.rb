@@ -1,4 +1,5 @@
 require_relative 'claude_export_processor'
+require_relative 'log_file'
 require 'json'
 require 'logger'
 require_relative 'source_archive'
@@ -38,7 +39,7 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     @dir_configs = normalize_dir_configs(dir_configs)
     @db = db
     @content_version = content_version
-    @logger = Logger.new('logs/claude_code.log')
+    @logger = LogFile.logger('logs/claude_code.log')
   end
 
   # Processes all session transcripts across every configured directory
