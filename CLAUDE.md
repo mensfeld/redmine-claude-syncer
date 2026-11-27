@@ -59,7 +59,8 @@ Optional configuration:
 **ClaudeCodeProcessor** (`lib/claude_code_processor.rb`) - Claude Code session reader:
 - Subclass of ClaudeExportProcessor that reads `*.jsonl` transcripts from one or more dirs
 - Reuses the same renderer so coding sessions are archived like conversations
-- Attaches the raw transcript; sessions are tagged (not subject-prefixed) by source
+- Collects the raw transcript (+ its `<session-id>/` sidecar dir) for the source snapshot; sessions are
+  tagged (not subject-prefixed) by source
 
 **RedmineClient** (`lib/redmine_client.rb`) - Redmine API interface:
 - Creates and updates Redmine issues
@@ -79,8 +80,9 @@ Optional configuration:
 3. **Issue Management**: Create / supersede / incrementally update the Redmine issue
 4. **Message Processing**: Render each message fully and add it as a note from the right user
 5. **Attachment Processing**: Upload artifacts, files, code blocks and oversized blocks as Redmine attachments
-6. **Project Processing**: Create an issue per Claude Project and attach its knowledge docs
-7. **State Persistence**: Update database with message IDs, content version and synced attachments
+6. **Source Snapshot**: Upload a compressed ZIP of the raw source data (see below)
+7. **Project Processing**: Create an issue per Claude Project and attach its knowledge docs
+8. **State Persistence**: Update database with message IDs, content version and synced attachments
 
 ### Full message rendering
 
@@ -111,6 +113,24 @@ Each message is scanned for uploadable content, attached to the issue as a note
 Attachment uploads are idempotent: each is tracked by a stable key (message + source +
 content hash) in the `attachments` table, so re-runs never create duplicates.
 
+### Source snapshots
+
+`SourceArchive` (`lib/source_archive.rb`) uploads a deflate-compressed `source-<time>-<digest>.zip` to the
+issue (as a note from the human user) holding everything the import was built from, so the issue can be
+re-processed or mined for metadata later:
+
+- the raw source files (`conversation.source_files`): `conversation.json` (the verbatim export record) for
+  Claude.ai conversations; `<session-id>.jsonl` plus every file in the `<session-id>/` sidecar dir
+  (subagent transcripts, tool results) for coding sessions
+- `metadata.json` - ids, issue, timestamps, cwd/branch, tags, source paths, content version
+- every extracted attachment under `attachments/<NNNN>-<message-id>/`
+
+Snapshots are keyed by a digest of the raw source files (kind `source` in the `attachments` table): an
+unchanged source is never re-uploaded, a changed one is uploaded **again**, keeping earlier snapshots. It runs
+after the conversation is recorded and a failed upload (e.g. over Redmine's max attachment size) is only
+logged and retried next run. Unchanged coding sessions without a snapshot are re-read once to backfill one.
+Sidecar `.jsonl` files are never imported as sessions of their own.
+
 ### Claude Projects
 
 `projects/*.json` are imported too: each Project becomes a Redmine issue (`Project: <name>`)
@@ -131,7 +151,7 @@ tool results, code blocks as files). Per session:
 
 - The title comes from the transcript's `aiTitle` (falling back to the first prompt).
 - `cwd` and git branch are recorded in the description.
-- The raw `.jsonl` transcript is attached for full fidelity.
+- The raw `.jsonl` transcript (and sidecar dir) goes into the compressed source snapshot.
 - Conversation id is `cc-<sessionId>` so it never collides with Claude.ai conversations.
 
 ### Tags and timestamps
@@ -184,7 +204,7 @@ upgraded to full content. Once at the current version, runs are incremental.
 - `conversation_id` - Conversation (or project) the attachment belongs to
 - `message_id` - Claude message UUID the attachment belongs to
 - `attachment_key` (UNIQUE) - Stable idempotency key (message + source + content hash)
-- `kind` - Attachment kind (`document`, `image`, `artifact`, `file`, `code`, `thinking`, `toolcall`, `toolresult`, `project_doc`)
+- `kind` - Attachment kind (`document`, `image`, `artifact`, `file`, `code`, `thinking`, `toolcall`, `toolresult`, `project_doc`, `source`)
 - `filename` - File name used in Redmine
 - `redmine_attachment_id` - Redmine attachment ID if known
 

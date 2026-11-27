@@ -101,6 +101,49 @@ RSpec.describe Syncer do
     end
   end
 
+  describe '#sync_source_archive' do
+    let(:syncer) do
+      described_class.new(
+        database_path: 'tmp/test_conversations.db', log_file: 'tmp/test.log', log_level: 'ERROR',
+        redmine_url: 'https://redmine.example.com', redmine_human_api_key: 'h',
+        redmine_claude_api_key: 'c', redmine_project_id: 'p',
+        redmine_human_user_id: 1, redmine_claude_user_id: 2
+      )
+    end
+
+    let(:redmine) { syncer.instance_variable_get(:@redmine) }
+    let(:conversation) do
+      { id: 'conv-1', source_files: { 'conversation.json' => '{"uuid":"conv-1"}' }, messages: [{ id: 'm1' }] }
+    end
+
+    it 'uploads a snapshot once per distinct source and again when the source changes' do
+      uploaded = []
+      allow(redmine).to receive(:add_attachments) { |_issue, atts, user, _header| uploaded << [atts.first, user] }
+
+      syncer.send(:sync_source_archive, 99, conversation)
+      syncer.send(:sync_source_archive, 99, conversation)
+      changed = conversation.merge(source_files: { 'conversation.json' => '{"uuid":"conv-1","more":1}' })
+      syncer.send(:sync_source_archive, 99, changed)
+
+      expect(uploaded.size).to eq(2)
+      expect(uploaded.map { |att, _| att[:content_type] }).to eq(%w[application/zip application/zip])
+      expect(uploaded.map(&:last)).to eq([1, 1])
+      expect(uploaded.map { |att, _| att[:key] }.uniq.size).to eq(2)
+    end
+
+    it 'skips conversations without source files' do
+      expect(redmine).not_to receive(:add_attachments)
+      syncer.send(:sync_source_archive, 99, conversation.merge(source_files: nil))
+    end
+
+    it 'does not raise or record the snapshot when the upload fails' do
+      allow(redmine).to receive(:add_attachments).and_raise('413 Request Entity Too Large')
+
+      expect { syncer.send(:sync_source_archive, 99, conversation) }.not_to raise_error
+      expect(syncer.db.attachment_kind_synced?('conv-1', 'source')).to be false
+    end
+  end
+
   describe '#ordered_by_creation' do
     let(:syncer) do
       described_class.new(

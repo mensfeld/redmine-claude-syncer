@@ -38,5 +38,17 @@ RSpec.describe ClaudeExportProcessor do
       expect(processor.process.map { |c| c[:id] }).to contain_exactly('c1', 'c2', 'c3', 'c4')
       expect(processor.process_projects.map { |p| p[:id] }).to eq(['p1'])
     end
+
+    it 'keeps the raw conversation record as a source file' do
+      record = { 'uuid' => 'c1', 'name' => 'c1', 'created_at' => '2026-01-01T00:00:00Z', 'extra_meta' => 42,
+                 'chat_messages' => [{ 'uuid' => 'm', 'sender' => 'human', 'text' => 'hi',
+                                       'content' => [], 'created_at' => '2026-01-01T00:00:00Z' }] }
+      write_zip(File.join(dir, 'conversations-000.zip'), 'conversations.json' => [record].to_json)
+
+      conversation = described_class.new(File.join(dir, 'conversations-000.zip')).process.first
+
+      expect(JSON.parse(conversation[:source_files]['conversation.json'])).to eq(record)
+      expect(conversation[:source_paths]).to eq(['conversations-000.zip'])
+    end
   end
 end

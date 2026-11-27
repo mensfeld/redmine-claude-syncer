@@ -106,6 +106,19 @@ class Database
     !row.nil?
   end
 
+  # Checks whether any attachment of the given kind was uploaded for a conversation
+  #
+  # @param conversation_id [String] the Claude conversation UUID
+  # @param kind [String] attachment kind (e.g. `source`)
+  # @return [Boolean] true if at least one such attachment was synced
+  def attachment_kind_synced?(conversation_id, kind)
+    row = @db.get_first_row(
+      "SELECT 1 FROM attachments WHERE conversation_id = ? AND kind = ? LIMIT 1",
+      [conversation_id, kind]
+    )
+    !row.nil?
+  end
+
   # Records an attachment that has been uploaded to a Redmine issue
   #
   # @param conversation_id [String] the Claude conversation UUID

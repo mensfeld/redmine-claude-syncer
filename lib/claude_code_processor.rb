@@ -1,7 +1,7 @@
 require_relative 'claude_export_processor'
 require 'json'
 require 'logger'
-require 'digest'
+require_relative 'source_archive'
 
 # Processes Claude Code session transcripts (~/.claude/projects/*/*.jsonl)
 #
@@ -97,7 +97,7 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     # FNM_DOTMATCH so ** descends into hidden dirs - sandbox/container stores keep
     # transcripts under a hidden ".claude" folder (e.g. <id>/.claude/projects/...).
     paths = Dir.glob(File.join(dir, '**', '*.jsonl'), File::FNM_DOTMATCH)
-               .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) }
+               .reject { |path| NON_TRANSCRIPT_FILES.include?(File.basename(path)) || sidecar_file?(path, dir) }
                .uniq.sort
 
     paths.filter_map do |path|
@@ -116,10 +116,29 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     end
   end
 
+  # Determines whether a file lives in a session's sibling `<session-id>/` directory
+  #
+  # Such files (e.g. `subagents/agent-*.jsonl`) belong to their parent session and are archived with it in the
+  # source snapshot, so they must not be imported as sessions of their own.
+  #
+  # @param path [String] path to a .jsonl file found under dir
+  # @param dir [String] the scanned session directory
+  # @return [Boolean] true if an ancestor directory has a matching `<name>.jsonl` transcript
+  def sidecar_file?(path, dir)
+    ancestor = File.dirname(path)
+    while ancestor.length > dir.length
+      return true if File.file?("#{ancestor}.jsonl")
+
+      ancestor = File.dirname(ancestor)
+    end
+    false
+  end
+
   # Determines whether a transcript can be skipped entirely, without reading it
   #
   # A file is skippable when its mtime/size match the last time we processed it *and* its conversation is
-  # already fully synced at the current content version. This lets re-runs skip the (often large) unchanged
+  # already fully synced at the current content version with a source snapshot uploaded (so sessions imported
+  # before snapshots existed get one on the next run). This lets re-runs skip the (often large) unchanged
   # sessions and only pay the parsing cost for transcripts that actually grew or are new.
   #
   # @param path [String] path to the .jsonl transcript
@@ -134,7 +153,8 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     # Session filenames are the session id (e.g. <session-id>.jsonl), matching the
     # same fallback used in #process_session_file, so this needs no file read.
     conversation_id = "cc-#{File.basename(path, '.jsonl')}"
-    @db.conversation_up_to_date?(conversation_id, @content_version)
+    @db.conversation_up_to_date?(conversation_id, @content_version) &&
+      @db.attachment_kind_synced?(conversation_id, SourceArchive::KIND)
   end
 
   # Processes a single session transcript file into a conversation hash
@@ -150,7 +170,6 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     messages = records.select { |r| message_record?(r) }.filter_map { |r| process_record(r) }
     return nil if messages.empty?
 
-    attach_raw_transcript(messages.first, session_id, path)
 
     timestamps = records.filter_map { |r| r['timestamp'] }.sort
     cwd = records.filter_map { |r| r['cwd'] }.first
@@ -162,7 +181,9 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
       updated_at: parse_timestamp(timestamps.last),
       cwd: cwd,
       git_branch: records.filter_map { |r| r['gitBranch'] }.first,
-      tags: session_tags(cwd)
+      tags: session_tags(cwd),
+      source_files: session_source_files(path),
+      source_paths: [File.expand_path(path)]
     }
   end
 
@@ -222,25 +243,24 @@ class ClaudeCodeProcessor < ClaudeExportProcessor
     }
   end
 
-  # Attaches the raw transcript file to the first message of a session
+  # Collects the raw files of a session for its source snapshot
   #
-  # @param first_message [Hash] the first processed message of the session
-  # @param session_id [String] the Claude Code session UUID
+  # Besides the transcript itself, Claude Code keeps per-session data in a sibling `<session-id>/` directory
+  # (subagent transcripts, externalized tool results); everything in it is included under its relative path.
+  #
   # @param path [String] path to the .jsonl transcript
-  # @return [void]
-  def attach_raw_transcript(first_message, session_id, path)
-    content = File.read(path)
-    digest = Digest::SHA256.hexdigest(content)[0..15]
+  # @return [Hash{String => String}] archive path => raw (binary) content
+  def session_source_files(path)
+    files = { File.basename(path) => File.binread(path) }
 
-    first_message[:attachments].unshift(
-      kind: 'transcript',
-      filename: "#{session_id}.jsonl",
-      content: content,
-      content_type: 'application/x-ndjson',
-      available: true,
-      description: 'Raw Claude Code session transcript',
-      key: "cc-#{session_id}:transcript:#{digest}"
-    )
+    sibling_dir = path.delete_suffix('.jsonl')
+    Dir.glob(File.join(sibling_dir, '**', '*'), File::FNM_DOTMATCH).sort.each do |file|
+      next unless File.file?(file)
+
+      files[File.join(File.basename(sibling_dir), file.delete_prefix("#{sibling_dir}/"))] = File.binread(file)
+    end
+
+    files
   end
 
   # Determines a human-readable title for the session

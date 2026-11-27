@@ -96,11 +96,38 @@ RSpec.describe ClaudeCodeProcessor do
     expect(code[:content]).to eq('puts 1')
   end
 
-  it 'attaches the raw transcript to the first message' do
-    transcript = session[:messages].first[:attachments].find { |a| a[:kind] == 'transcript' }
-    expect(transcript[:filename]).to eq('sess-1.jsonl')
-    expect(transcript[:available]).to be true
-    expect(transcript[:content]).to include('"sessionId":"sess-1"')
+  it 'keeps the raw transcript as a source file instead of a per-message attachment' do
+    expect(session[:messages].flat_map { |m| m[:attachments] }.map { |a| a[:kind] }).not_to include('transcript')
+    expect(session[:source_files].keys).to eq(['sess-1.jsonl'])
+    expect(session[:source_files]['sess-1.jsonl']).to include('"sessionId":"sess-1"')
+    expect(session[:source_paths]).to eq([File.expand_path(session_path)])
+  end
+
+  describe 'session sidecar directory' do
+    let(:sidecar_dir) { File.join(session_dir, 'sess-1') }
+    let(:subagent) do
+      { 'type' => 'user', 'uuid' => 'sub1', 'sessionId' => 'sess-1', 'timestamp' => '2026-01-01T00:00:05Z',
+        'message' => { 'role' => 'user', 'content' => 'subagent task' } }
+    end
+
+    before do
+      FileUtils.mkdir_p(File.join(sidecar_dir, 'subagents'))
+      FileUtils.mkdir_p(File.join(sidecar_dir, 'tool-results'))
+      File.write(File.join(sidecar_dir, 'subagents', 'agent-1.jsonl'), ([subagent] * 9).map(&:to_json).join("\n"))
+      File.write(File.join(sidecar_dir, 'tool-results', 'r1.txt'), 'big output')
+    end
+
+    it 'includes the sidecar files in the source files' do
+      expect(session[:source_files].keys).to contain_exactly(
+        'sess-1.jsonl', 'sess-1/subagents/agent-1.jsonl', 'sess-1/tool-results/r1.txt'
+      )
+      expect(session[:source_files]['sess-1/tool-results/r1.txt']).to eq('big output')
+    end
+
+    it 'does not import sidecar transcripts as sessions of their own' do
+      expect(sessions.size).to eq(1)
+      expect(session[:messages].map { |m| m[:id] }).to eq(%w[u1 a1 u2])
+    end
   end
 
   describe 'skipping unchanged, fully synced sessions' do
@@ -122,9 +149,18 @@ RSpec.describe ClaudeCodeProcessor do
     it 'skips a session whose file is unchanged and already fully synced' do
       described_class.new(projects_dir, db: db, content_version: 3).process
       db.create_conversation('cc-sess-1', 1, 'u2', 3)
+      db.record_attachment('cc-sess-1', 'cc-sess-1', 'cc-sess-1:source:abc', 'source', 'source.zip', nil)
 
       sessions = described_class.new(projects_dir, db: db, content_version: 3).process
       expect(sessions).to eq([])
+    end
+
+    it 'reprocesses an unchanged synced session that has no source snapshot yet' do
+      described_class.new(projects_dir, db: db, content_version: 3).process
+      db.create_conversation('cc-sess-1', 1, 'u2', 3)
+
+      sessions = described_class.new(projects_dir, db: db, content_version: 3).process
+      expect(sessions.map { |s| s[:id] }).to eq(['cc-sess-1'])
     end
 
     it 'reprocesses when the file changed after being marked synced' do

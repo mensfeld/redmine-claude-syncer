@@ -1,6 +1,7 @@
 require_relative 'database'
 require_relative 'claude_export_processor'
 require_relative 'redmine_client'
+require_relative 'source_archive'
 require 'logger'
 require 'fileutils'
 require 'date'
@@ -150,6 +151,7 @@ class Syncer
       conversation[:messages].last[:id],
       CONTENT_VERSION
     )
+    sync_source_archive(issue_id, conversation)
     apply_tags(issue_id, conversation, fresh: true)
   end
 
@@ -182,6 +184,7 @@ class Syncer
       conversation[:messages].last[:id],
       CONTENT_VERSION
     )
+    sync_source_archive(new_issue_id, conversation)
     apply_tags(new_issue_id, conversation, fresh: true)
   end
 
@@ -202,6 +205,9 @@ class Syncer
 
     # Always reconcile attachments so anything new on the conversation is uploaded
     sync_attachments(issue_id, conversation)
+
+    # Snapshot the source again if it changed (older snapshots are kept)
+    sync_source_archive(issue_id, conversation)
 
     # Ensure tags are present (no-op once applied, tracked via tags_applied)
     apply_tags(issue_id, conversation, fresh: false)
@@ -375,5 +381,28 @@ class Syncer
         )
       end
     end
+  end
+
+  # Uploads a compressed snapshot of the conversation's raw source data, once per distinct source
+  #
+  # The snapshot is keyed by a digest of the source files, so an unchanged source is skipped while a changed one
+  # (e.g. a session that grew) is uploaded as an additional snapshot, leaving the earlier ones in place. Runs after
+  # the conversation is recorded and never raises, so a rejected upload (e.g. over Redmine's attachment size
+  # limit) cannot fail or duplicate the import; it is simply retried on the next run.
+  #
+  # @param issue_id [Integer] the Redmine issue ID
+  # @param conversation [Hash] conversation data with :id, :source_files and :messages keys
+  # @return [void]
+  def sync_source_archive(issue_id, conversation)
+    return if conversation[:source_files].nil? || conversation[:source_files].empty?
+
+    key = SourceArchive.key(conversation)
+    return if @db.attachment_synced?(key)
+
+    archive = SourceArchive.build(conversation, issue_id: issue_id, content_version: CONTENT_VERSION)
+    @redmine.add_attachments(issue_id, [archive], @human_user_id, 'Source snapshot (raw import data, compressed)')
+    @db.record_attachment(conversation[:id], conversation[:id], key, SourceArchive::KIND, archive[:filename], nil)
+  rescue StandardError => e
+    @logger.error "Failed to upload source snapshot for conversation #{conversation[:id]}: #{e.message}"
   end
 end
